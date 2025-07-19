@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import * as tf from '@tensorflow/tfjs';
-import JointFeedback, { JointAngles } from './joinFeedBack';
+import JointFeedback, { checkShoulderRule, JointAngles } from './jointFeedBack';
 
 declare global {
   interface Window {
@@ -10,6 +10,19 @@ declare global {
   }
 }
 
+function speak(msg: string) {
+  if (typeof window !== "undefined" && window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+    const utter = new window.SpeechSynthesisUtterance(msg);
+    const voices = window.speechSynthesis.getVoices();
+    const viVoice = voices.find(v => v.lang.startsWith("vi"));
+    if (viVoice) utter.voice = viVoice;
+    utter.lang = "vi-VN";
+    window.speechSynthesis.speak(utter);
+  }
+}
+
+// Hàm đợi Pose Mediapipe
 function waitForPose(): Promise<any> {
   return new Promise((resolve) => {
     function check() {
@@ -23,6 +36,7 @@ function waitForPose(): Promise<any> {
   });
 }
 
+// Helper toán học
 function euclid(a: number[], b: number[]): number {
   return Math.sqrt(
     Math.pow(a[0] - b[0], 2) +
@@ -31,6 +45,7 @@ function euclid(a: number[], b: number[]): number {
   );
 }
 function angleBetween3Pts(A: number[], B: number[], C: number[]): number {
+  // Góc tại B trong không gian 3D
   const ab = [A[0] - B[0], A[1] - B[1], (A[2] || 0) - (B[2] || 0)];
   const cb = [C[0] - B[0], C[1] - B[1], (C[2] || 0) - (B[2] || 0)];
   const dot = ab[0] * cb[0] + ab[1] * cb[1] + ab[2] * cb[2];
@@ -40,7 +55,9 @@ function angleBetween3Pts(A: number[], B: number[], C: number[]): number {
   return Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI;
 }
 
+// Hàm tiền xử lý và feature (chuẩn hóa đúng với model train)
 function poseToFeatures(keypoints: number[][]) {
+  // Center, normalize scale
   const midHip = [
     (keypoints[23][0] + keypoints[24][0]) / 2,
     (keypoints[23][1] + keypoints[24][1]) / 2,
@@ -62,7 +79,7 @@ function poseToFeatures(keypoints: number[][]) {
     (y - midHip[1]) / bodyHeight,
     (z - midHip[2]) / bodyHeight,
   ]);
-  // Các feature phụ giống code train:
+  // Các feature phụ, giống code train
   const lWristToShoulder = euclid(normed[15], normed[11]);
   const rWristToShoulder = euclid(normed[16], normed[12]);
   const lElbowAngle = angleBetween3Pts(normed[11], normed[13], normed[15]);
@@ -76,53 +93,46 @@ function poseToFeatures(keypoints: number[][]) {
   const rLegLen = euclid(normed[24], normed[28]);
   const ankleDist = euclid(normed[27], normed[28]);
 
-  // Tổng cộng: 99 + 12 = 111
   const features = [
     ...normed.flat(),
-    lWristToShoulder,
-    rWristToShoulder,
-    lElbowAngle / 180,
-    rElbowAngle / 180,
-    lShoulderAngle / 180,
-    rShoulderAngle / 180,
-    lKneeAngle / 180,
-    rKneeAngle / 180,
-    shoulderDist,
-    lLegLen,
-    rLegLen,
-    ankleDist
+    lWristToShoulder, rWristToShoulder,
+    lElbowAngle / 180, rElbowAngle / 180,
+    lShoulderAngle / 180, rShoulderAngle / 180,
+    lKneeAngle / 180, rKneeAngle / 180,
+    shoulderDist, lLegLen, rLegLen, ankleDist
   ];
-  // DEBUG:
   if (features.length !== 111) {
     console.error("Số feature predict:", features.length);
   }
+
   const jointAngles: JointAngles = {
-    leftElbow: lElbowAngle,
-    rightElbow: rElbowAngle,
-    leftKnee: lKneeAngle,
-    rightKnee: rKneeAngle,
-    leftShoulder: lShoulderAngle,
     rightShoulder: rShoulderAngle
   };
-  return {
-    features,
-    jointAngles
-  }
+  return { features, jointAngles };
+}
+
+export type PoseState = "standing" | "mid_curl" | "full_curl" | "";
+
+interface InputSectionProps {
+  onPrediction?: (poseState: string, jointAngles: JointAngles, violate: boolean) => void;
 }
 
 
-export default function InputSection() {
+export default function InputSection({ onPrediction }: any) {
   const labelNames = ["full_curl", "mid_curl", "standing"];
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number | null>(null);
+
   const [currentLandmarks, setCurrentLandmarks] = useState<number[][] | null>(null);
   const [predictor, setPredictor] = useState<tf.LayersModel | null>(null);
   const [predictResult, setPredictResult] = useState<string | null>(null);
   const [cameraStatus, setCameraStatus] = useState<'checking' | 'has_camera' | 'no_camera' | 'no_permission' | 'error'>('checking');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [jointAngles, setJointAngles] = useState<JointAngles | undefined>(undefined);
+  const [bodyAngle, setBodyAngle] = useState<number | null>(null);
 
+  // Setup camera & mediapipe
   useEffect(() => {
     let stream: MediaStream | null = null;
     let poseInstance: any = null;
@@ -130,7 +140,7 @@ export default function InputSection() {
 
     async function checkCamera() {
       try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+        if (!navigator.mediaDevices?.enumerateDevices) {
           setCameraStatus('no_camera');
           setErrorMessage('Thiết bị không hỗ trợ camera!');
           return false;
@@ -144,7 +154,7 @@ export default function InputSection() {
         }
         setCameraStatus('has_camera');
         return true;
-      } catch (e) {
+      } catch {
         setCameraStatus('error');
         setErrorMessage('Đã xảy ra lỗi khi kiểm tra camera!');
         return false;
@@ -155,12 +165,12 @@ export default function InputSection() {
       const modelUrl = '/models/bicep_curl_pose_model.json';
       const model = await tf.loadLayersModel(modelUrl);
       setPredictor(model);
-      console.log('Nạp model thành công!');
-    }
+    };
 
     const init = async () => {
       const hasCamera = await checkCamera();
       if (!hasCamera) return;
+
       try {
         const PoseConstructor = await waitForPose();
 
@@ -179,8 +189,8 @@ export default function InputSection() {
           modelComplexity: 1,
           smoothLandmarks: true,
           enableSegmentation: false,
-          minDetectionConfidence: 0.85,
-          minTrackingConfidence: 0.85,
+          minDetectionConfidence: 0.9,
+          minTrackingConfidence: 0.9,
         });
 
         poseInstance.onResults((results: any) => {
@@ -195,15 +205,22 @@ export default function InputSection() {
           if (results.poseLandmarks) {
             const landmarks: number[][] = results.poseLandmarks.map((pt: any) => [pt.x, pt.y, pt.z]);
             setCurrentLandmarks(landmarks);
-            results.poseLandmarks.forEach((landmark: any) => {
-              const { x, y } = landmark;
+
+            // Vẽ các điểm pose lên canvas
+            for (const landmark of results.poseLandmarks) {
               ctx.beginPath();
-              ctx.arc(x * canvas.width, y * canvas.height, 5, 0, 2 * Math.PI);
+              ctx.arc(landmark.x * canvas.width, landmark.y * canvas.height, 5, 0, 2 * Math.PI);
               ctx.fillStyle = 'blue';
               ctx.fill();
-            });
+            }
+
+            // Tính toán các góc cần thiết để feedback
             const { jointAngles } = poseToFeatures(landmarks);
             setJointAngles(jointAngles);
+          }
+          else{
+            speak('Please step before the camera!')
+            setPredictResult("Hãy đứng trước camera!");
           }
           ctx.restore();
         });
@@ -215,7 +232,7 @@ export default function InputSection() {
         };
 
         process();
-      } catch (err) {
+      } catch {
         setCameraStatus('error');
         setErrorMessage('Không truy cập được camera!');
       }
@@ -235,15 +252,38 @@ export default function InputSection() {
     };
   }, []);
 
+  // Predict và kiểm tra góc quay xéo 45° (theo Z)
   useEffect(() => {
     async function predictCurrent() {
       if (predictor && currentLandmarks && currentLandmarks.length >= 29) {
-        const { features } = poseToFeatures(currentLandmarks);
+        const lShoulder = currentLandmarks[11];
+        const rShoulder = currentLandmarks[12];
+        const dx = rShoulder[0] - lShoulder[0];
+        const dz = rShoulder[2] - lShoulder[2];
+        let angleShoulderZ = Math.abs(Math.atan2(dz, dx) * 180 / Math.PI);
+        setBodyAngle(angleShoulderZ);
+
+        // Rule: chỉ nhận nếu góc này nằm trong khoảng bạn muốn
+        if (angleShoulderZ < 90 || angleShoulderZ > 150) {
+          speak("Please turn sideways so that your right arm is visible!");
+          setPredictResult("Hãy đứng quay xéo sao cho có thể nhìn thấy tay phải!");
+          // Gửi về cha trạng thái chưa hợp lệ (không predict)
+          onPrediction?.("", {}, false);
+          return;
+        }
+
+        // Predict nếu đúng tư thế
+        const { features, jointAngles } = poseToFeatures(currentLandmarks);
         const inputTensor = tf.tensor2d([features]);
         const prediction = predictor.predict(inputTensor) as tf.Tensor;
         const arr = await prediction.data();
         const maxIdx = arr.indexOf(Math.max(...arr));
-        setPredictResult(labelNames[maxIdx]);
+        const state = labelNames[maxIdx];
+        setPredictResult(`${state} | Score: ${(arr[maxIdx] * 100).toFixed(1)}%`);
+        // Check rule vi phạm khớp
+        const violated = checkShoulderRule(jointAngles);
+        // Gửi callback về cha
+        onPrediction?.(state, jointAngles, violated);
       }
     }
     predictCurrent();
@@ -252,20 +292,38 @@ export default function InputSection() {
   return (
     <div className='relative flex flex-col gap-2'>
       {cameraStatus === 'checking' && <p className='text-center'>Đang kiểm tra camera...</p>}
-
       {cameraStatus === 'has_camera' && (
         <>
-          <video ref={videoRef} playsInline className='w-full rounded-lg hidden' />
-          <canvas ref={canvasRef} className='aspect-8/6' width={1368} height={768} />
-          {predictResult && (
-            <div className="absolute top-0 left-0 text-3xl font-bold text-green-600 px-4 py-2 bg-white bg-opacity-80 rounded">
-              Dự đoán: {predictResult}
+          {/* React camera (video) */}
+          <video
+            ref={videoRef}
+            playsInline
+            autoPlay
+            className='w-full rounded-lg hidden'
+          />
+          {/* Kết quả pose */}
+          <canvas
+            ref={canvasRef}
+            className='w-full'
+            width={1024}
+            height={768}
+          />
+          {/* Góc xéo thân người */}
+          {bodyAngle !== null && (
+            <div className="text-blue-500 text-lg">
+              Góc vai (Z): {bodyAngle.toFixed(1)}°
             </div>
           )}
+          {/* Dự đoán state */}
+          {predictResult && (
+            <div className="absolute top-0 left-0 text-3xl font-bold text-green-600 px-4 py-2 bg-white bg-opacity-80 rounded">
+              {predictResult}
+            </div>
+          )}
+          {/* Đánh giá khớp (expert system) */}
           <JointFeedback angles={jointAngles} />
         </>
       )}
-
       {cameraStatus !== 'has_camera' && cameraStatus !== 'checking' && (
         <p className='text-center text-red-500'>{errorMessage || 'Vui lòng kiểm tra lại camera!'}</p>
       )}

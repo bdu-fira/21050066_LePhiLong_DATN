@@ -24,6 +24,6 @@
       "@/features": ["./features"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "app/(main)/@tap_luyen/page.tss"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "app/(nguoi-tap)/@tap_luyen/page.tss"],
   "exclude": ["node_modules"]
 }

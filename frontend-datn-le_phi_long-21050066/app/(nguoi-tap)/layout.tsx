@@ -1,3 +1,4 @@
+'use client'
 import { Geist, Geist_Mono } from "next/font/google";
 import "@/components/style/globals.css"
 import { BarChart3, ChevronDown, Dumbbell, Home, PlaySquare } from "lucide-react";
@@ -9,6 +10,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import CheckAuthWrapper from "@/components/checkAuthWrapper";
+import { logout } from "@/features/tai-khoan/api/logout";
+import { Button } from "@/components/ui/button";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,11 +26,31 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const Logout = async()=>{
+
+}
+
 export default function MainLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const [user, setUser] = useState<{ name?: string } | null>(null);
+  
+  useEffect(() => {
+    // Lấy user mỗi khi component mount
+    const value = localStorage.getItem('user');
+    setUser(value ? JSON.parse(value) : null);
+
+    // Optional: Nghe event storage để tự động cập nhật khi localStorage thay đổi ở tab khác
+    const onStorage = () => {
+      const value = localStorage.getItem('user');
+      setUser(value ? JSON.parse(value) : null);
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   return (
     <html lang="vi">
       <head>
@@ -33,6 +59,7 @@ export default function MainLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased clearfix flex flex-col min-h-screen gap-4`}
       >
+        <CheckAuthWrapper>
         <header className="border-b bg-background/95 sticky top-0 z-30">
           <div className="px-4 mx-auto flex h-16 items-center justify-between">
             <div className="text-2xl font-bold text-primary tracking-tight">
@@ -49,7 +76,7 @@ export default function MainLayout({
                   className="flex items-center gap-2 px-4 py-2 ml-4 rounded-md border font-medium bg-background hover:bg-accent transition-colors"
                   type="button"
                 >
-                  Nguyễn Văn A
+                  {user?.name || "Đang tải..."}
                   <ChevronDown className="w-4 h-4" />
                 </button>
               </DropdownMenuTrigger>
@@ -57,8 +84,12 @@ export default function MainLayout({
                 <DropdownMenuLabel>Tài khoản</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem>Hồ sơ</DropdownMenuItem>
-                <DropdownMenuItem>Cài đặt</DropdownMenuItem>
-                <DropdownMenuItem><a className="text-destructive w-full" href="/dang-nhap">Đăng xuất</a></DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href={"/tai-khoan"}>
+                    Cài đặt
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild><button className="text-destructive w-full bg-transparent text-left hover:text-destructive" onClick={()=>logout()}>Đăng xuất</button></DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -66,6 +97,7 @@ export default function MainLayout({
         <main className="container-lg flex-1 flex mt-4">
           {children}
         </main>
+        </CheckAuthWrapper>
       </body>
     </html>
   );

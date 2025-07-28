@@ -21,7 +21,6 @@ export function AuthGuard(roles: number[]) {
         const refresh_token = request.cookies['refresh_token'];
         const payload = { access_token, refresh_token };
         const check_access_token = await this._userService.verify(payload);
-        console.log(payload)
 
         if(!check_access_token.isSuccess){
           const result = await this._userService.generateTokens(payload)
@@ -42,13 +41,13 @@ export function AuthGuard(roles: number[]) {
           });
         }
 
+        const user = await this._jwtService.decode(refresh_token);
         if(roles.length > 0){
-          const user = await this._jwtService.decode(refresh_token);
           if (!user || !roles.includes(user.isAdmin)) {
             return false; 
           }
         }
-
+        request.userID = user.id
         return true;
       } catch(e){
         console.log(e)

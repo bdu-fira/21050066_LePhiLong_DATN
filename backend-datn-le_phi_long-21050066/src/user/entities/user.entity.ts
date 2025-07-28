@@ -1,4 +1,6 @@
-import { BaseEntity, Column, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Transform } from "class-transformer";
+import { format } from "date-fns";
+import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 
 @Entity()
 export class User {
@@ -11,7 +13,8 @@ export class User {
     @Column()
     gender: number;
 
-    @Column()
+    @Column({ type: 'date' })
+    @Transform(({ value }) => value ? format(new Date(value), 'yyyy-MM-dd') : null)
     dateOfBirth: Date;
 
     @Column({type: "tinyint"})

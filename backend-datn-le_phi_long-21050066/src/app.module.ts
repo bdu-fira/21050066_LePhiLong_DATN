@@ -21,6 +21,7 @@ import { JwtModule } from '@nestjs/jwt';
       password: '123',
       database: 'ai_fitness',
       entities: [User],
+      timezone: '+07:00', 
       // synchronize: true,
     }),
     JwtModule.registerAsync({

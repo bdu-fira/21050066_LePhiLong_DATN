@@ -62,7 +62,6 @@ export class UserController {
   @UseGuards(AuthGuard([]))
   @Post('verify')
   async verify(@Res() res: Response) {
-    console.log('test')
     const result = {
       isSuccess: true,
       statusCode: 200,
@@ -103,6 +102,7 @@ export class UserController {
   @UseGuards(AuthGuard([1, 0]))
   @Patch('update')
   async update(@Body() payload: any, @Req() req: any, @Res() res: Response) {
+    payload.id = req.userID
     const result = await this._userService.update(payload);
     res.status(result.statusCode).json(
       result

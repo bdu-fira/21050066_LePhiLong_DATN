@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const caiDatTaiKhoanSchema = z.object({
+export const thongtinTaikhoanSchema = z.object({
   name: z.string().min(1, 'Tên không được để trống'),
   gender: z.enum(['0', '1'], { required_error: 'Chọn giới tính' }),
   dateOfBirth: z.string().refine(val => !isNaN(Date.parse(val)), {

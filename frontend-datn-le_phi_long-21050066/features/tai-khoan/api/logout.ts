@@ -13,7 +13,6 @@ export async function logout() {
         withCredentials: true, 
       }
     );
-    console.log(response.data)
     localStorage.clear()
     window.location.replace('dang-nhap')
   } catch (error: any) {

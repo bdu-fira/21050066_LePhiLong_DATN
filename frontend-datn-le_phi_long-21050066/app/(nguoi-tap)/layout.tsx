@@ -14,7 +14,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import CheckAuthWrapper from "@/components/checkAuthWrapper";
 import { logout } from "@/features/tai-khoan/api/logout";
-import { Button } from "@/components/ui/button";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,9 +25,6 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const Logout = async()=>{
-
-}
 
 export default function MainLayout({
   children,
@@ -39,16 +35,22 @@ export default function MainLayout({
   
   useEffect(() => {
     // Lấy user mỗi khi component mount
-    const value = localStorage.getItem('user');
-    setUser(value ? JSON.parse(value) : null);
+    const user = localStorage.getItem('user');
+    if(user){
+      setUser(JSON.parse(user));
+    }
 
-    // Optional: Nghe event storage để tự động cập nhật khi localStorage thay đổi ở tab khác
-    const onStorage = () => {
-      const value = localStorage.getItem('user');
-      setUser(value ? JSON.parse(value) : null);
+    // Nghe event storage để tự động cập nhật khi localStorage thay đổi khi cập nhật tài khoản
+    const onUserUpdated = () => {
+      const user = localStorage.getItem('user');
+      if(user){
+        setUser(JSON.parse(user));
+      }
     };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+
+    window.addEventListener('userUpdated', onUserUpdated);
+
+    return () => window.removeEventListener('userUpdated', onUserUpdated);
   }, []);
 
   return (
@@ -81,9 +83,6 @@ export default function MainLayout({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuLabel>Tài khoản</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>Hồ sơ</DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href={"/tai-khoan"}>
                     Cài đặt

@@ -24,6 +24,7 @@ export class UserService {
       })
 
 
+
       if (!user) {
         return {
           isSuccess: false,
@@ -179,7 +180,7 @@ export class UserService {
 
   async findOne(payload: any) {
     try {
-      const user = this._userRepository.findOne({
+      const user = await this._userRepository.findOne({
         where: {
           id: payload.id
         }
@@ -237,11 +238,15 @@ export class UserService {
       Object.assign(user, payload)
 
       const result = await this._userRepository.save(user)
+      const updated_user: any = new User()
+      Object.assign(updated_user, result)
+      delete updated_user.password
 
       return {
         isSuccess: true,
         statusCode: 200,
-        message: 'Cập nhật thành công!'
+        message: 'Cập nhật thành công!',
+        data: updated_user
       }
     }
     catch (e) {

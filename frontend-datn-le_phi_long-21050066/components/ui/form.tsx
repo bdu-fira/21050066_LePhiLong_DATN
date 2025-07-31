@@ -98,7 +98,7 @@ function FormLabel({
       data-slot="form-label"
       data-error={!!error}
       data-is-radio={false}
-      className={cn("data-[error=true]:text-destructive", className, 'bg-primary data-[is-radio=true]:bg-white w-fit px-2 py-1 rounded-full text-white data-[is-radio=true]:text-black')}
+      className={cn("data-[error=true]:text-destructive", className, 'w-fit px-2 py-1 rounded-full')}
       htmlFor={formItemId}
       {...props}
     />

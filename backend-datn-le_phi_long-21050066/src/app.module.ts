@@ -1,11 +1,16 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { Module } from '@nestjs/common';
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UserModule } from './user/user.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { User } from './user/entities/user.entity';
+import { User } from './entities/user.entity';
 import { JwtModule } from '@nestjs/jwt';
+import { MailerModule } from '@nestjs-modules/mailer';
+import { join } from 'path';
+import { Trainee } from './entities/trainee.entity';
+import { TraineeModule } from './trainee/trainee.module';
 
 @Module({
   imports: [
@@ -20,7 +25,7 @@ import { JwtModule } from '@nestjs/jwt';
       username: 'root',
       password: '123',
       database: 'ai_fitness',
-      entities: [User],
+      entities: [User, Trainee],
       timezone: '+07:00', 
       // synchronize: true,
     }),
@@ -33,7 +38,33 @@ import { JwtModule } from '@nestjs/jwt';
         signOptions: { expiresIn: configService.get<string>('JWT_ACCESS_TOKEN_EXP') },
       }),
     }),
-    UserModule,    
+    MailerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => ({
+        transport: {
+          host: configService.get<string>('MAIL_HOST'),
+          port: configService.get<number>('MAIL_PORT'),
+          secure: false,
+          auth: {
+            user: configService.get<string>('MAIL_USER'),
+            pass: configService.get<string>('MAIL_PASS'),
+          },
+        },
+        defaults: {
+          from: `"No Reply" <${configService.get<string>('MAIL_FROM')}>`,
+        },
+        template: {
+          dir: join(process.cwd(), 'src','templates'),
+          adapter: new HandlebarsAdapter(),
+          options: {
+            strict: true,
+          },
+        },
+      }),
+    }),
+    UserModule,
+    TraineeModule,    
   ],
   controllers: [AppController],
   providers: [AppService],

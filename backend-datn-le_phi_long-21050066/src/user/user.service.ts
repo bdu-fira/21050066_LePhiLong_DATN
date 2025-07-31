@@ -1,29 +1,32 @@
 import { Injectable } from '@nestjs/common';
 import { Not, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { User } from './entities/user.entity';
+import { User } from '../entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { LoginDTO } from './dto/login.dto';
+import { MailerService } from '@nestjs-modules/mailer';
+import { Trainee } from 'src/entities/trainee.entity';
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectRepository(User)
     private _userRepository: Repository<User>,
+    @InjectRepository(Trainee)
+    private _traineeRepository: Repository<Trainee>,
     private _jwtService: JwtService,
-    private _configService: ConfigService
+    private _configService: ConfigService,
+    private _mailerService: MailerService,
   ) { }
-  async login(payload: LoginDTO) {
+  async login(payload: any) {
     try {
       const user = await this._userRepository.findOne({
         where: {
           email: payload.email
-        }
+        },
+        relations: ['trainee'],
       })
-
-
 
       if (!user) {
         return {
@@ -143,6 +146,9 @@ export class UserService {
       Object.assign(new_user, payload)
 
       await this._userRepository.save(new_user)
+      const new_trainee = new Trainee()
+      new_trainee.id = new_user.id
+      await this._traineeRepository.save(new_trainee)
 
       return {
         isSuccess: true,
@@ -185,6 +191,7 @@ export class UserService {
           id: payload.id
         }
       })
+
       return {
         isSuccess: true,
         statusCode: 200,
@@ -232,8 +239,11 @@ export class UserService {
         }
       }
 
-      if (payload.hasOwnProperty('password')){
+      if (payload.hasOwnProperty('password') && payload.password !== ''){
         payload.password = await bcrypt.hash(payload.password, parseInt(this._configService.get('BCRYPT_ROUNDS') as string))
+      }
+      else{
+        delete payload.password
       }
       Object.assign(user, payload)
 
@@ -290,4 +300,123 @@ export class UserService {
       }
     }
   }
+
+  async lostPassword(email: string) {
+    try {
+      const user = await this._userRepository.findOne({
+        where: { email: email }
+      });
+  
+      if (!user) {
+        return {
+          isSuccess: false,
+          statusCode: 404,
+          message: 'Người dùng không tồn tại!'
+        }
+      }
+  
+      const payload = { email };
+      const expiresIn = this._configService.get<string>('JWT_RESET_PASSWORD_TOKEN_EXP') || '15m';
+      const resetToken = await this._jwtService.signAsync(payload, { expiresIn });
+  
+      const resetLink = `${this._configService.get<string>('SITE_URL')}/quen-mat-khau/${resetToken}`;
+      const lastReset = await this._jwtService.decode(resetToken).iat
+
+      user.lastReset = new Date(lastReset * 1000)
+      await this._userRepository.save(user)
+  
+      await this._mailerService.sendMail({
+        to: email,
+        subject: 'Khôi phục mật khẩu | AI Fitness',
+        template: './reset-password.hbs',
+        context: { resetLink },
+      });
+  
+      return {
+        isSuccess: true,
+        statusCode: 200,
+        message: 'Đã gửi hướng dẫn khôi phục mật khẩu.',
+      };
+    } catch (e) {
+      console.log(e)
+      return {
+        isSuccess: false,
+        statusCode: 500,
+        message: 'Lỗi hệ thống, vui lòng thử lại sau.',
+      }
+    }
+  }
+
+  async updatePassword(payload: any) {
+    try {
+      const validation = await this.validateResetToken(payload)
+      if(!validation.isSuccess){
+        return validation
+      }
+
+      const user = validation.data!
+  
+      const saltRounds = parseInt(this._configService.get('BCRYPT_ROUNDS') as string) || 10;
+      user.password = await bcrypt.hash(payload.password, saltRounds);
+  
+      await this._userRepository.save(user);
+  
+      return {
+        isSuccess: true,
+        statusCode: 200,
+        message: 'Reset mật khẩu thành công!',
+      };
+    } catch (e) {
+      console.log(e)
+      return {
+        isSuccess: false,
+        statusCode: 500,
+        message: 'Lỗi hệ thống, vui lòng thử lại sau.',
+      };
+    }
+  }
+
+  async validateResetToken(payload: any) {
+    try {
+      // Giải mã token
+      const decoded: any = await this._jwtService.verifyAsync(payload.token);
+  
+      const user = await this._userRepository.findOne({
+        where: { email: decoded.email }
+      });
+  
+      if (!user) {
+        return {
+          isSuccess: false,
+          statusCode: 404,
+          message: 'Người dùng không tồn tại!',
+        };
+      }
+  
+      if (!user.lastReset || user.lastReset.getTime() / 1000 > decoded.iat) {
+        return {
+          isSuccess: false,
+          statusCode: 401,
+          message: 'Token đã hết hạn!',
+        };
+      }
+  
+      // Thành công
+      return {
+        isSuccess: true,
+        statusCode: 200,
+        message: 'Token hợp lệ!',
+        data: user,
+      };
+    } catch (err) {
+      return {
+        isSuccess: false,
+        statusCode: 401,
+        message: 'Token không hợp lệ',
+      };
+    }
+  }
+  
+  
+  
 }

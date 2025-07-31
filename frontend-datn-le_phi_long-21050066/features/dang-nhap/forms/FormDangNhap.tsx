@@ -4,11 +4,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import React, { useState } from 'react'
 import { useForm, SubmitHandler } from "react-hook-form"
-import { DangnhapSchema, TDangnhap } from './schemas/DangnhapSchema'
+import { DangnhapSchema, TDangnhap } from '@/features/dang-nhap/schemas/DangnhapSchema'
 import { zodResolver } from "@hookform/resolvers/zod"
 import axios from 'axios'
 
-const PageDangnhap = () => {
+const FormDangNhap = () => {
     const [serverMessage, setServerMessage] = useState<string>()
     const {
         register,
@@ -32,7 +32,6 @@ const PageDangnhap = () => {
             if (res.data?.isSuccess) {
                 const userObj = JSON.stringify(res.data.data.user)
                 localStorage.setItem('user', userObj);
-                document.cookie = `user=${encodeURIComponent(JSON.stringify(userObj))}; path=/;`;
                 window.location.replace('/')
             } else {
                 setServerMessage(res.data?.message || 'Đăng nhập thất bại!')
@@ -69,4 +68,4 @@ const PageDangnhap = () => {
     )
 }
 
-export default PageDangnhap
+export default FormDangNhap

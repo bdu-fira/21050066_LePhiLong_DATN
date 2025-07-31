@@ -8,17 +8,17 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { thongtinTaikhoanSchema } from '@/features/tai-khoan/schemas/thongtinTaikhoanSchema';
-import { updateTaiKhoan } from '@/features/tai-khoan/api/update';
+import { capnhatTaiKhoanSchema } from '@/features/tai-khoan/schemas/updateTaiKhoanSchema';
+import { updateTaiKhoan } from '@/features/tai-khoan/api/updateTaikhoan';
 import { useEffect, useState } from 'react';
 
-type FormData = z.infer<typeof thongtinTaikhoanSchema>;
+type FormData = z.infer<typeof capnhatTaiKhoanSchema>;
 
-export default function FormCaiDatTaiKhoan() {
+export default function FormCapnhatTaikhoan() {
   const [serverStatusCode, setServerStatusCode] = useState<number>()
   const [serverMessage, setServerMessage] = useState<string>()
   const accountForm = useForm<FormData>({
-    resolver: zodResolver(thongtinTaikhoanSchema),
+    resolver: zodResolver(capnhatTaiKhoanSchema),
     defaultValues: {
       name: '',
       gender: "1",
@@ -45,11 +45,9 @@ export default function FormCaiDatTaiKhoan() {
       const result = await updateTaiKhoan(data);
       setServerStatusCode(result.statusCode);
       if (result?.statusCode === 200) {
-        setServerMessage('Cập nhật thành công!');
+        setServerMessage(result.message);
         localStorage.setItem('user', JSON.stringify(result.data));
         window.dispatchEvent(new Event('userUpdated'));
-      } else {
-        setServerMessage(result.message);
       }
     } catch (error: any) {
       setServerMessage('Đã xảy ra lỗi khi cập nhật tài khoản.');
@@ -59,10 +57,11 @@ export default function FormCaiDatTaiKhoan() {
   return (
     <Form {...accountForm}>
       <form
+        autoComplete="nope"
         onSubmit={accountForm.handleSubmit(onSubmit)}
-        className="space-y-6 bg-white dark:bg-muted p-6 rounded-lg border-t-1"
+        className="space-y-6 bg-white dark:bg-muted p-6 rounded-lg justify-shadow"
       >
-        <h2 className='px-2 underline text-primary font-bold text-xl'>Thông tin tài khoản</h2>
+        <h2 className='px-2 underline text-primary font-bold text-lg'>Thông tin tài khoản</h2>
         <FormField
           control={accountForm.control}
           name="name"
@@ -86,15 +85,15 @@ export default function FormCaiDatTaiKhoan() {
                 <RadioGroup
                   onValueChange={field.onChange}
                   value={field.value}
-                  className="flex gap-4"
+                  className="flex gap-2"
                 >
-                  <FormItem className='flex justify-center items-center'>
+                  <FormItem className='flex justify-center items-center gap-0'>
                     <FormControl>
                       <RadioGroupItem value="1" id="male" />
                     </FormControl>
                     <FormLabel htmlFor="male" data-is-radio={true} >Nam</FormLabel>
                   </FormItem>
-                  <FormItem className='flex justify-center items-center'>
+                  <FormItem className='flex justify-center items-center gap-0'>
                     <FormControl>
                       <RadioGroupItem value="0" id="female" />
                     </FormControl>
@@ -126,7 +125,7 @@ export default function FormCaiDatTaiKhoan() {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input type="email" {...field} />
+                <Input type="email" {...field} autoComplete='off' name='new_email'/>
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -139,7 +138,7 @@ export default function FormCaiDatTaiKhoan() {
             <FormItem>
               <FormLabel>Mật khẩu</FormLabel>
               <FormControl>
-                <Input type="password" {...field} />
+                <Input type="password" {...field} placeholder='Để trống nếu muốn giữ nguyên mật khẩu...' name={`new_pasword`} autoComplete='off' />
               </FormControl>
               <FormMessage />
             </FormItem>

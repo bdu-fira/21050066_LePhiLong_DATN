@@ -56,7 +56,13 @@ export class UserController {
       path: '/',
       expires: new Date(0),
     });
-    return res.json({ message: 'Đã đăng xuất và xóa cookie!' });
+    return res.json(
+      {
+        isSuccess: true,
+        statusCode: 200,
+        message: 'Đã đăng xuất và xóa cookie!' 
+      }
+    );
   }
 
   @UseGuards(AuthGuard([]))
@@ -72,9 +78,9 @@ export class UserController {
     );
   }
 
-  @UseGuards(AuthGuard)
   @Post('create')
   async create(@Body() payload: any, @Res() res: Response) {
+    payload.isAdmin = 0;
     const result = await this._userService.create(payload);
     res.status(result.statusCode).json(
       result
@@ -109,9 +115,55 @@ export class UserController {
     );
   }
 
-  @UseGuards(AuthGuard)
+  @Get('lost-password')
+  async lostPassword(@Query() payload: any, @Res() res: Response) {
+    const result = await this._userService.lostPassword(payload.email);
+    res.status(result.statusCode).json(
+      result
+    );
+  }
+
+  @Post('update-password')
+  async updatePassword(@Body() payload: any, @Res() res: Response) {
+    const result = await this._userService.updatePassword(payload);
+    res.status(result.statusCode).json(
+      result
+    );
+  }
+
+  @Get('validate-reset-token')
+  async validateResetToken(@Query() payload: any, @Res() res: Response) {
+    const result = await this._userService.validateResetToken(payload);
+    res.status(result.statusCode).json(
+      result
+    );
+  }
+
+  @UseGuards(AuthGuard([1]))
   @Delete('delete')
-  async remove(@Query() payload: any) {
-    return this._userService.delete(payload);
+  async remove(@Req() req: any, @Res() res: Response) {
+    const payload = {id: req.userID}
+    const result = await this._userService.delete(payload);
+
+    if(result.statusCode === 200){
+      res.clearCookie('access_token', {
+        httpOnly: true,
+        secure: this._configService.get<string>('NODE_ENV') === 'production',
+        sameSite: 'lax',
+        path: '/',
+        expires: new Date(0),
+      });
+      res.clearCookie('refresh_token', {
+        httpOnly: true,
+        secure: this._configService.get<string>('NODE_ENV') === 'production',
+        sameSite: 'lax',
+        path: '/',
+        expires: new Date(0),
+      });
+    }
+
+    res.status(result.statusCode).json(
+      result
+    );
   }
 }

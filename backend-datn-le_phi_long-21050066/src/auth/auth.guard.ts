@@ -43,7 +43,7 @@ export function AuthGuard(roles: number[]) {
 
         const user = await this._jwtService.decode(refresh_token);
         if(roles.length > 0){
-          if (!user || !roles.includes(user.isAdmin)) {
+          if (!user && !roles.includes(user.isAdmin)) {
             return false; 
           }
         }

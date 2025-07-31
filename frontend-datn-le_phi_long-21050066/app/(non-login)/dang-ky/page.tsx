@@ -1,4 +1,4 @@
-import FormDangNhap from "@/features/dang-nhap/forms/FormDangNhap";
+import FormDangKy from "@/features/dang-ky/forms/FormDangKy";
 import { Metadata } from "next";
 import Link from "next/link";
 
@@ -7,14 +7,14 @@ export const metadata: Metadata = {
   description: "Đăng nhập | AI Fitness",
 };
 
-export default function PageDangNhap() {
+export default function PageDangKy() {
   return (
     <div className="flex justify-center items-center h-screen">
       <div className="max-w-md w-full space-y-2">
-        <h1 className="text-4xl text-center mb-4">Đăng nhập AI Fitness</h1>
-        <FormDangNhap />
+        <h1 className="text-4xl text-center mb-4">Đăng ký AI Fitness</h1>
+        <FormDangKy />
         <div>
-          <p className="text-center">Bạn chưa có tài khoản? <Link href={'dang-ky'} className="text-primary underline font-bold" >Đăng ký</Link></p>
+          <p className="text-center">Đã có tài khoản rồi? <Link href={'dang-nhap'} className="text-primary underline font-bold" >Đăng nhập</Link></p>
           <p className="text-center">Bạn quên mật khẩu? <Link href={'quen-mat-khau'} className="text-primary underline font-bold" >Lấy lại mật khẩu</Link></p>
         </div>
       </div>

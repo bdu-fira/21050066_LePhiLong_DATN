@@ -1,13 +1,11 @@
 'use client'
 import { Geist, Geist_Mono } from "next/font/google";
 import "@/components/style/globals.css"
-import { BarChart3, ChevronDown, Dumbbell, Home, PlaySquare } from "lucide-react";
+import { BarChart3, ChevronDown, Cog, Dumbbell, Home, PlaySquare } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuLabel,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useEffect, useState } from "react";
@@ -71,6 +69,7 @@ export default function MainLayout({
               <a href="/" className="flex gap-2 font-medium transition-colors hover:text-primary/80 whitespace-nowrap"><Home className="w-5 h-5" /> Trang chủ</a>
               <a href="#" className="flex gap-2 font-medium transition-colors hover:text-primary/80 whitespace-nowrap"><PlaySquare className="w-5 h-5" />Xem động tác</a>
               <a href="#" className="flex gap-2 font-medium transition-colors hover:text-primary/80 whitespace-nowrap"><BarChart3 className="w-5 h-5" />Phân tích</a>
+              <a href="/train" className="flex gap-2 font-medium transition-colors hover:text-primary/80 whitespace-nowrap"><Cog className="w-5 h-5" />Huấn luyện động tác</a>
             </nav>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

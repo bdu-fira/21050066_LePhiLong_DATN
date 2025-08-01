@@ -1,5 +1,4 @@
 import LichTap from "@/features/trang-chu/LichTap";
-import WorkoutPlanSection from "@/features/trang-chu/WorkoutPlan"
 import { Metadata } from "next";
 
 export const metadata: Metadata = {

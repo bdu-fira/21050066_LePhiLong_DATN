@@ -2,33 +2,17 @@
 
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { useState, useRef, useEffect } from 'react';
-import { z } from 'zod';
+import { any, z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { cn } from '@/lib/utils';
-import { extractPoseKeypoints } from '@/lib/PoseExtractor';
 import { trainPoseClassifier } from '@/lib/ModelTrainer';
+import { trainSchema } from '../schemas/formTrainSchema';
+import { extract, extractFromImages, initPoseExtractor } from '@/lib/PoseExtractor';
+import FormExpert from './formExpert';
 
-const levelSchema = z.object({
-  reps: z.number().min(1, 'Rep phải lớn hơn 0').max(100, 'Tối đa 100 rep'),
-  sets: z.number().min(1, 'Set phải lớn hơn 0').max(5, 'Tối đa 5 set'),
-});
-const imageLabelSchema = z.object({
-  label: z.string().min(1, 'Nhập tên nhãn'),
-  images: z.array(z.object({
-    file: z.any(),
-    preview: z.string(),
-    customName: z.string().optional(),
-  })),
-});
-const trainSchema = z.object({
-  actionName: z.string().min(1, 'Nhập tên động tác'),
-  levels: z.array(levelSchema).min(1, 'Phải có ít nhất 1 cấp độ').max(3, 'Tối đa 3 cấp độ'),
-  imageLabels: z.array(imageLabelSchema).min(3, 'Phải có ít nhất 3 nhóm label'),
-});
 type FormData = z.infer<typeof trainSchema>;
 
 export default function FormTrain() {
-  // -- Form init
   const form = useForm<FormData>({
     resolver: zodResolver(trainSchema),
     defaultValues: {
@@ -39,7 +23,8 @@ export default function FormTrain() {
     mode: 'onChange',
   });
 
-  // -- Watch fields
+  const [poseExtractor, setPoseExtractor] = useState<any>()
+
   const watchedImageLabels = useWatch({ control: form.control, name: 'imageLabels' });
   const { fields: levelFields, append: addLevel, remove: removeLevel } = useFieldArray({
     control: form.control, name: 'levels',
@@ -48,30 +33,32 @@ export default function FormTrain() {
     control: form.control, name: 'imageLabels',
   });
 
-  // -- UI state
   const [activeLabelIdx, setActiveLabelIdx] = useState(-1);
   const [newLabel, setNewLabel] = useState('');
   const [editingLabels, setEditingLabels] = useState<string[]>([]);
   const labelInputRef = useRef<HTMLInputElement>(null);
 
-  // -- Image & pose state
   const [selectedImage, setSelectedImage] = useState<{ url: string, label?: string, file?: File } | null>(null);
   const [selectedKeypoints, setSelectedKeypoints] = useState<number[][] | null>(null);
   const [keypointCache, setKeypointCache] = useState<Record<string, number[][]>>({});
   const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // -- Status state
   const [formStatus, setFormStatus] = useState<string>('');
   const [trainResultMsg, setTrainResultMsg] = useState<string | null>(null);
   const [training, setTraining] = useState(false);
 
-  // --- Sync editing labels on change
+  useEffect(() => {
+    const init = async () => {
+      setPoseExtractor(await initPoseExtractor())
+    }
+    init()
+  }, [])
+
   useEffect(() => {
     setEditingLabels(labelFields.map(l => l.label));
   }, [labelFields]);
 
-  // --- Draw skeleton khi chọn ảnh
   useEffect(() => {
     if (!selectedImage || !selectedKeypoints || !imgRef.current || !canvasRef.current) return;
     const imgElem = imgRef.current;
@@ -81,7 +68,6 @@ export default function FormTrain() {
     const ctx = canvas.getContext('2d')!;
     ctx.clearRect(0, 0, w, h);
     const kp = selectedKeypoints.map(([x, y]) => [x * w, y * h]);
-    // Connections (pose skeleton)
     const connections = [
       [11, 13], [13, 15], [15, 17], [15, 19], [15, 21], [17, 19],
       [12, 14], [14, 16], [16, 18], [16, 20], [16, 22], [18, 20],
@@ -106,19 +92,17 @@ export default function FormTrain() {
     });
   }, [selectedImage, selectedKeypoints]);
 
-  // ----------- Handlers --------------
-
+  // SỬA ĐOẠN NÀY: dùng extract cho 1 ảnh
   function handleSelectImage(img: any) {
     setSelectedImage({ url: img.preview, label: img.customName, file: img.file });
     if (keypointCache[img.customName]) {
       setSelectedKeypoints(keypointCache[img.customName]);
     } else {
-      extractPoseKeypoints([{ file: img.file, label: img.customName }])
-        .then(res => {
-          const arr = res[img.customName];
-          if (arr && arr[0]) {
-            setKeypointCache(cache => ({ ...cache, [img.customName]: arr[0] }));
-            setSelectedKeypoints(arr[0]);
+      extract(img.file, poseExtractor)
+        .then(kp => {
+          if (kp) {
+            setKeypointCache(cache => ({ ...cache, [img.customName]: kp }));
+            setSelectedKeypoints(kp);
           } else {
             setSelectedKeypoints(null);
           }
@@ -137,7 +121,7 @@ export default function FormTrain() {
   function handleAddLabel() {
     const label = newLabel.trim();
     if (!label) return;
-    if (watchedImageLabels.some(l => l.label.trim().toLowerCase() === label.toLowerCase())) {
+    if (watchedImageLabels.some((l: any) => l.label.trim().toLowerCase() === label.toLowerCase())) {
       setFormStatus('Label đã tồn tại.');
       return;
     }
@@ -147,7 +131,6 @@ export default function FormTrain() {
     setTimeout(() => labelInputRef.current?.focus(), 0);
   }
   function handleRemoveLabel(idx: number) {
-    if (!window.confirm('Bạn chắc chắn muốn xóa nhóm label này?')) return;
     removeLabel(idx);
     setTimeout(() => {
       setActiveLabelIdx(prev => prev === idx ? 0 : prev > idx ? prev - 1 : prev);
@@ -174,31 +157,36 @@ export default function FormTrain() {
     form.trigger('imageLabels');
   }
 
-  async function handleSubmit(data: FormData) {
+  // SỬA ĐOẠN NÀY: dùng extractFromImages cho nhiều ảnh
+  async function handleTrain(data: FormData) {
     setFormStatus('');
     setTraining(true);
     setTrainResultMsg(null);
 
-    const allImages = data.imageLabels.flatMap(g =>
-      (g.images || []).map(img => ({
+    const allImages = data.imageLabels.flatMap((g: any) =>
+      (g.images || []).map((img: any) => ({
         file: img.file,
         label: g.label,
         customName: img.customName ?? '',
       }))
     );
+
     if (!data.actionName.trim()) {
       setFormStatus('Bạn cần nhập tên động tác.');
       setTraining(false);
       return;
     }
+
     if (!allImages.length) {
       setFormStatus('Vui lòng upload ảnh và label.');
       setTraining(false);
       return;
     }
-    setFormStatus('Đang rút trích keypoints từ ảnh...');
+
     try {
-      const poseData = await extractPoseKeypoints(allImages);
+      setFormStatus('Đang rút trích keypoints từ ảnh...');
+      const poseData = await extractFromImages(allImages, poseExtractor); // CHỈ SỬA LẠI DÒNG NÀY
+
       setFormStatus('Đang huấn luyện model...');
       const { model, labelNames, valAcc } = await trainPoseClassifier(poseData);
 
@@ -215,13 +203,12 @@ export default function FormTrain() {
     setTraining(false);
   }
 
-  // ----------- UI --------------
 
   return (
     <div className="w-full h-screen flex flex-row bg-white overflow-hidden">
       {/* FORM BÊN TRÁI */}
-      <div className="flex-[1.2] bg-white rounded-none md:rounded-lg p-4 md:p-6 overflow-auto border-r border-muted-foreground/10 h-full flex flex-col">
-        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+      <div className="flex-1 bg-white rounded-none md:rounded-lg p-4 md:p-6 overflow-auto border-r border-muted-foreground/10 h-full flex flex-col">
+        <form onSubmit={form.handleSubmit(handleTrain)} className="space-y-6">
           <h2 className="text-primary font-bold text-lg underline">Tạo động tác huấn luyện</h2>
           {/* Tên động tác */}
           <div>
@@ -272,7 +259,7 @@ export default function FormTrain() {
               {levelFields.length < 3 && (
                 <button
                   type="button"
-                  className="mt-2 border px-3 py-1 rounded hover:bg-primary/10"
+                  className="mt-2 border px-3 py-1 rounded bg-primary text-white w-fit"
                   onClick={handleAddLevel}
                   disabled={training}
                 >Thêm cấp độ</button>
@@ -310,12 +297,10 @@ export default function FormTrain() {
                 <div
                   key={label.id}
                   className={cn(
-                    "border rounded-lg mb-2 p-3 bg-muted cursor-pointer",
+                    "border rounded-lg mb-2 p-3 bg-muted  w-fit",
                     activeLabelIdx === labelIdx && "ring-2 ring-primary"
                   )}
-                  onClick={() => setActiveLabelIdx(labelIdx)}
                   tabIndex={0}
-                  style={{ outline: 'none' }}
                 >
                   <div className="flex items-center justify-between mb-2" onClick={e => e.stopPropagation()}>
                     <input
@@ -342,6 +327,13 @@ export default function FormTrain() {
                     />
                     <button
                       type="button"
+                      className="text-white border bg-primary rounded px-2 py-1 mr-2"
+                      onClick={() => setActiveLabelIdx(labelIdx)}
+                      disabled={activeLabelIdx === labelIdx}
+                      title="Chọn nhóm label này"
+                    >Chọn</button>
+                    <button
+                      type="button"
                       className="text-red-600 text-lg font-bold px-2"
                       onClick={ev => { ev.stopPropagation(); handleRemoveLabel(labelIdx); }}
                       title="Xóa label"
@@ -358,12 +350,13 @@ export default function FormTrain() {
                   />
                 </div>
               ))}
+
             </div>
           </div>
 
           <button
             type="submit"
-            className="w-full mt-6 bg-primary text-white py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+            className="w-fit px-4 mt-6 bg-primary text-white py-2 rounded hover:bg-primary/90 disabled:opacity-50"
             disabled={training}
           >
             {training ? "Đang xử lý..." : "Tạo động tác & Train"}
@@ -376,29 +369,23 @@ export default function FormTrain() {
           </div>
         )}
       </div>
-
+      <div className="flex-1 bg-white rounded-none md:rounded-lg p-4 md:p-6 overflow-auto border-r border-muted-foreground/10 h-full flex flex-col">
+        <FormExpert labels={labelFields.map(l => l.label)}/>
+      </div>
       {/* CỘT GIỮA: Ảnh lớn + canvas overlay skeleton */}
-      <div className="flex flex-col items-center justify-start min-w-[400px] max-w-[430px] w-[22vw] bg-white h-full border-x border-muted-foreground/10 pt-8"
-        style={{ zIndex: 2 }}>
-        <div className="w-full flex items-center justify-center mb-6" style={{ minHeight: 240 }}>
+      <div className="flex flex-col items-center justify-start min-w-[400px] max-w-[430px] w-[22vw] bg-white h-full border-x border-muted-foreground/10 pt-8 z-[2]">
+        <div className="w-full flex items-center justify-center mb-6 min-h-[240px]">
           {selectedImage ? (
-            <div style={{ position: "relative", width: 400, maxWidth: "100%" }}>
+            <div className="relative w-[400px] max-w-full">
               <img
                 ref={imgRef}
                 src={selectedImage.url}
                 alt={selectedImage.label}
-                style={{ width: "100%", display: "block", borderRadius: 8, background: "#eee" }}
+                className="w-full block rounded-lg bg-gray-200"
               />
               <canvas
                 ref={canvasRef}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: "100%",
-                  pointerEvents: "none",
-                }}
+                className="absolute top-0 left-0 w-full h-full pointer-events-none"
               />
             </div>
           ) : (

@@ -53,9 +53,6 @@ export default function MainLayout({
 
   return (
     <html lang="vi">
-      <head>
-        <script src="/mediapipe/pose/pose.js"></script>
-      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased clearfix flex flex-col min-h-screen gap-4`}
       >

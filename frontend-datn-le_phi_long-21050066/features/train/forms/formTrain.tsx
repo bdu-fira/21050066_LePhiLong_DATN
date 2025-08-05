@@ -269,7 +269,7 @@ export default function FormTrain() {
 
           {/* Quản lý nhóm label */}
           <div>
-            <label className="font-semibold">Thêm nhóm label cho ảnh training</label>
+            <label className="font-semibold">Label huấn luyện</label>
             <div className="flex items-center gap-2 mb-4 mt-1">
               <input
                 ref={labelInputRef}
@@ -359,7 +359,7 @@ export default function FormTrain() {
             className="w-fit px-4 mt-6 bg-primary text-white py-2 rounded hover:bg-primary/90 disabled:opacity-50"
             disabled={training}
           >
-            {training ? "Đang xử lý..." : "Tạo động tác & Train"}
+            {training ? "Đang xử lý..." : "Huấn luyện mô hình"}
           </button>
         </form>
         <div className="mt-4 text-destructive">{formStatus}</div>

@@ -151,13 +151,13 @@ export default function FormExpertSchema({ labels }: { labels: string[] }) {
                   </select>
                   <input
                     type="text"
-                    placeholder="Góc khớp (1-180°)"
+                    placeholder="Giá trị"
                     {...form.register(`criteria.${idx}.angle`)}
                     className="border rounded p-1 px-2 flex-1 min-w-[100px]"
                   />
                   <input
                     type="text"
-                    placeholder="Message khi feedback sai"
+                    placeholder="Thông điệp lỗi"
                     {...form.register(`criteria.${idx}.message`)}
                     className="border rounded p-1 px-2 flex-1 min-w-[140px]"
                   />

@@ -13,11 +13,10 @@ export class UserController {
   ) {}
 
   @Post('login')
-  async login(@Body() payload: LoginDTO, @Res() res: Response) {
+  async login(@Body() payload: any, @Res() res: Response) {
       const result = await this._userService.login(payload)
 
       if (result.isSuccess && result.data) {
-          // Set cookie cho access_token
           res.cookie('access_token', result.data.access_token, {
               httpOnly: true,
               secure: this._configService.get<string>('NODE_ENV') === 'production',
@@ -79,9 +78,8 @@ export class UserController {
   }
 
   @Post('create')
-  async create(@Body() payload: any, @Res() res: Response) {
-    payload.isAdmin = 0;
-    const result = await this._userService.create(payload);
+  async create(@Body() payload: JSON, @Res() res: Response) {
+    const result = await this._userService.create({...payload, isAdmin: 0});
     res.status(result.statusCode).json(
       result
     );
@@ -108,8 +106,7 @@ export class UserController {
   @UseGuards(AuthGuard([1, 0]))
   @Patch('update')
   async update(@Body() payload: any, @Req() req: any, @Res() res: Response) {
-    payload.id = req.userID
-    const result = await this._userService.update(payload);
+    const result = await this._userService.update({...payload, id: req.userID});
     res.status(result.statusCode).json(
       result
     );

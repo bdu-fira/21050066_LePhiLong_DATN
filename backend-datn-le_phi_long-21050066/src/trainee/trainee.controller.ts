@@ -18,7 +18,6 @@ export class TraineeController {
   @UseGuards(AuthGuard([0]))
   @Patch('update')
   async update(@Body() payload: any, @Req() req: any, @Res() res: Response) {
-    // payload gồm weight, height
     const result = await this.traineeService.update({ ...payload, userId: req.userID });
     res.status(result.statusCode).json(result);
   }

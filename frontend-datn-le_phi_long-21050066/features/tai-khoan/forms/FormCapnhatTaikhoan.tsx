@@ -1,3 +1,4 @@
+// FormCapnhatTaikhoan.tsx
 'use client';
 import {
   Form, FormField, FormItem, FormLabel, FormControl, FormMessage
@@ -25,6 +26,7 @@ export default function FormCapnhatTaikhoan() {
       dateOfBirth: '',
       email: '',
       password: '',
+      confirmPassword: ''
     },
   });
 
@@ -35,14 +37,21 @@ export default function FormCapnhatTaikhoan() {
       current_user.gender = current_user.gender.toString()
       const dateOfBirth = new Date(current_user.dateOfBirth)
       current_user.dateOfBirth = dateOfBirth.toISOString().slice(0, 10)
-      accountForm.reset(current_user)
+      accountForm.reset({
+        name: current_user.name || '',
+        gender: current_user.gender?.toString() || '1',
+        dateOfBirth: current_user.dateOfBirth ? new Date(current_user.dateOfBirth).toISOString().slice(0, 10) : '',
+        email: current_user.email || '',
+        password: '',
+        confirmPassword: ''
+      })
     }
   }, []);
 
   const onSubmit = async (data: FormData) => {
     try {
-      console.log(data)
-      const result = await updateTaiKhoan(data);
+      const { confirmPassword, ...payload } = data;
+      const result = await updateTaiKhoan(payload);
       setServerStatusCode(result.statusCode);
       if (result?.statusCode === 200) {
         setServerMessage(result.message);
@@ -136,9 +145,22 @@ export default function FormCapnhatTaikhoan() {
           name="password"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Mật khẩu</FormLabel>
+              <FormLabel>Mật khẩu mới</FormLabel>
               <FormControl>
-                <Input type="password" {...field} placeholder='Để trống nếu muốn giữ nguyên mật khẩu...' name={`new_pasword`} autoComplete='off' />
+                <Input type="password" {...field} placeholder='Để trống nếu muốn giữ nguyên mật khẩu...' autoComplete='new-password' />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={accountForm.control}
+          name="confirmPassword"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Nhập lại mật khẩu</FormLabel>
+              <FormControl>
+                <Input type="password" {...field} placeholder='Nhập lại mật khẩu...' autoComplete='new-password' />
               </FormControl>
               <FormMessage />
             </FormItem>

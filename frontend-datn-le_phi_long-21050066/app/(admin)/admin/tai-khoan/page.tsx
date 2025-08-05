@@ -10,8 +10,6 @@ export default function PageCapnhatThongtin() {
       <h1 className='font-bold text-xl text-center'>Cập nhật thông tin</h1>
       <div className="w-full max-w-md sm:max-w-xl lg:max-w-2xl mx-auto mt-4 space-y-18">
         <FormCapnhatTaikhoan />
-        <FormCapNhatThongTinCaNhan />
-        <FormXoaTaiKhoan />
       </div>
     </div>
   );

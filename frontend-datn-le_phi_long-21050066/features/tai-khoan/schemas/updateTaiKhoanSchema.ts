@@ -7,7 +7,15 @@ export const capnhatTaiKhoanSchema = z.object({
     message: 'Ngày sinh không hợp lệ',
   }),
   email: z.string().email('Email không hợp lệ'),
-  password: z
-    .string()
-    .nonempty('Vui lòng nhập mật khẩu!')
+  password: z.string().optional(),
+  confirmPassword: z.string().optional(),
+}).refine((data) => {
+  // Nếu có nhập password thì bắt buộc confirmPassword phải khớp
+  if (data.password && data.password.length > 0) {
+    return data.password === data.confirmPassword;
+  }
+  return true; // Không đổi mật khẩu thì bỏ qua
+}, {
+  path: ["confirmPassword"], // Hiển thị lỗi ở field này
+  message: "Mật khẩu nhập lại không khớp!"
 });

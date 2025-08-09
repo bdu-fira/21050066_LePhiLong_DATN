@@ -9,7 +9,7 @@ import { JOINT_ANGLE_OPTIONS, LOOKING_ANGLE } from '@/constants';
 
 type ExpertFormData = z.infer<typeof formExpertSchema>;
 
-export default function FormExpertSchema({ labels }: { labels: string[] }) {
+export default function formExpert({ labels }: { labels: string[] }) {
     const form = useForm<ExpertFormData>({
       resolver: zodResolver(formExpertSchema),
       defaultValues: {

@@ -36,6 +36,7 @@
     "cookie": "^1.0.2",
     "date-fns": "^4.1.0",
     "jszip": "^3.10.1",
+    "kalidokit": "^1.1.5",
     "lucide-react": "^0.525.0",
     "next": "15.3.4",
     "react": "^19.0.0",

@@ -14,6 +14,5 @@ export const imageLabelSchema = z.object({
 });
 export const trainSchema = z.object({
   actionName: z.string().min(1, 'Nhập tên động tác'),
-  levels: z.array(levelSchema).min(1, 'Phải có ít nhất 1 cấp độ').max(3, 'Tối đa 3 cấp độ'),
   imageLabels: z.array(imageLabelSchema).min(3, 'Phải có ít nhất 3 nhóm label'),
 });

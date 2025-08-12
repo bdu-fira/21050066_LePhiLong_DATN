@@ -1,9 +1,12 @@
 import { z } from 'zod';
+import { MUSCLE_GROUPS } from '@/constants';
 
 /** 1=giữ dáng, 2=giảm mỡ, 3=tăng cơ */
 export const GOAL_VALUES = [1, 2, 3] as const;
-/** ID nhóm cơ: 1=ngực, 2=lưng, 3=tay, 4=chân, 5=bụng, 6=vai */
-export const MUSCLE_IDS = [1, 2, 3, 4, 5, 6] as const;
+
+/** Lấy danh sách id hợp lệ từ MUSCLE_GROUPS */
+export const MUSCLE_GROUP_IDS = MUSCLE_GROUPS.map(g => g.id);
+const MUSCLE_GROUP_ID_SET = new Set(MUSCLE_GROUP_IDS);
 
 export const createLichtapHangtuanSchema = z.object({
   dateOfBirth: z
@@ -11,7 +14,7 @@ export const createLichtapHangtuanSchema = z.object({
     .min(1, 'Vui lòng chọn ngày sinh')
     .refine((v) => !isNaN(Date.parse(v)), { message: 'Ngày sinh không hợp lệ' }),
 
-    gender: z.enum(['0', '1'], { required_error: 'Chọn giới tính' }),
+  gender: z.enum(['0', '1'], { required_error: 'Chọn giới tính' }),
 
   height: z.coerce
     .number({ invalid_type_error: 'Chiều cao phải là số' })
@@ -31,13 +34,12 @@ export const createLichtapHangtuanSchema = z.object({
     .array(
       z.coerce
         .number({ invalid_type_error: 'Nhóm cơ không hợp lệ' })
-        .refine((v) => MUSCLE_IDS.includes(v as any), { message: 'Nhóm cơ không hợp lệ' })
+        .refine((v) => MUSCLE_GROUP_ID_SET.has(v), { message: 'Nhóm cơ không hợp lệ' })
     )
     .min(1, 'Chọn ít nhất 1 nhóm cơ')
-    .refine(
-      (arr) => new Set(arr).size === arr.length,
-      { message: 'Danh sách nhóm cơ bị trùng' }
-    ),
+    .refine((arr) => new Set(arr).size === arr.length, {
+      message: 'Danh sách nhóm cơ bị trùng',
+    }),
 
   daysPerWeek: z.coerce
     .number({ invalid_type_error: 'Số ngày/tuần phải là số' })

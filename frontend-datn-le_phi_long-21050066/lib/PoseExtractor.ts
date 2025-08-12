@@ -62,3 +62,49 @@ export async function initPoseExtractor() {
     return grouped;
   }
   
+  export function drawPose(opts: any) {
+    const { canvas, image, keypoints } = opts || {};
+    if (!canvas || !image || !keypoints?.length) return;
+  
+    const w = image.clientWidth;
+    const h = image.clientHeight;
+  
+    canvas.width = w;
+    canvas.height = h;
+  
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+  
+    ctx.clearRect(0, 0, w, h);
+  
+    // Scale keypoints [0..1] -> pixel (chỉ dùng x,y)
+    const kp = keypoints.map((pt: any) => [pt[0] * w, pt[1] * h]);
+  
+    const connections = [
+      [11, 13], [13, 15], [15, 17], [15, 19], [15, 21], [17, 19],
+      [12, 14], [14, 16], [16, 18], [16, 20], [16, 22], [18, 20],
+      [11, 12], [23, 24], [11, 23], [12, 24], [23, 25], [25, 27],
+      [27, 29], [29, 31], [27, 31], [24, 26], [26, 28], [28, 30],
+      [30, 32], [28, 32],
+    ];
+  
+    // Vẽ xương
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#10b981';
+    connections.forEach(([i, j]) => {
+      if (kp[i] && kp[j]) {
+        ctx.beginPath();
+        ctx.moveTo(kp[i][0], kp[i][1]);
+        ctx.lineTo(kp[j][0], kp[j][1]);
+        ctx.stroke();
+      }
+    });
+  
+    // Vẽ khớp
+    kp.forEach(([x, y]: any) => {
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, 2 * Math.PI);
+      ctx.fillStyle = '#ef4444';
+      ctx.fill();
+    });
+  }

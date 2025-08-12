@@ -38,12 +38,15 @@ export async function trainPoseClassifier(poseData: Record<string, number[][][]>
     batchSize: 8,
     validationSplit: 0.3,
     callbacks: {
-      onEpochEnd: (epoch, logs) => {
-        console.log(logs)
-        if (logs?.val_acc !== undefined) valAcc = logs.val_acc;
+      onEpochEnd: (_epoch, logs) => {
+        if (logs?.val_acc !== undefined) valAcc = logs.val_acc as number;
       }
     }
   });
 
+
+  const byLabel = Object.fromEntries(Object.entries(poseData).map(([k, arr]) => [k, arr.map(kp => kp.flat())]));
+  (() => { const b=new Blob([JSON.stringify(byLabel,null,2)],{type:"application/json"}); const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u; a.download="poseData_byLabel.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u); })();
+  
   return { model, labelNames, valAcc };
 }

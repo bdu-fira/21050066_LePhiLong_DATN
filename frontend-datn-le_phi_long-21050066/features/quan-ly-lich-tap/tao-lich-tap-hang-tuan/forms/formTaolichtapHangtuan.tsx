@@ -15,27 +15,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 import {
   createLichtapHangtuanSchema,
-  GOAL_VALUES,
-  MUSCLE_IDS,
   type CreateLichtapHangtuanForm,
 } from '@/features/quan-ly-lich-tap/tao-lich-tap-hang-tuan/schemas/CreateLichtapHangtuanSchema';
 
 import { createLichtapHangtuan } from '@/features/quan-ly-lich-tap/tao-lich-tap-hang-tuan/api/createLichtapHangtuan';
-
-const GOAL_LABELS: Record<number, string> = {
-  1: 'Giữ dáng',
-  2: 'Giảm mỡ',
-  3: 'Tăng cơ',
-};
-
-const MUSCLE_LABELS: Record<number, string> = {
-  1: 'Ngực',
-  2: 'Lưng',
-  3: 'Tay',
-  4: 'Chân',
-  5: 'Bụng',
-  6: 'Vai',
-};
+import { MUSCLE_GROUPS } from '@/constants';
+import { GOALS } from '@/constants';
 
 export default function FormTaolichtapHangtuan() {
   const router = useRouter();
@@ -46,30 +31,31 @@ export default function FormTaolichtapHangtuan() {
     resolver: zodResolver(createLichtapHangtuanSchema),
     defaultValues: {
       dateOfBirth: '',
-      gender: "0",
+      gender: '0',
       height: undefined,
       weight: undefined,
       goal: undefined,
-      muscles: [],
+      muscles: [], // mảng id của MUSCLE_GROUPS
       daysPerWeek: 3,
     },
   });
 
-   useEffect(() => {
-      const user = localStorage.getItem('user');
-      if(user){
-        const current_user = JSON.parse(user);
-        current_user.gender = current_user.gender.toString()
-        const dateOfBirth = new Date(current_user.dateOfBirth)
-        current_user.dateOfBirth = dateOfBirth.toISOString().slice(0, 10)
-        form.reset({
-          gender: current_user.gender.toString() || "1",
-          dateOfBirth: current_user.dateOfBirth ? new Date(current_user.dateOfBirth).toISOString().slice(0, 10) : '',
-        })
-      }
-
-    }, []);
-
+  useEffect(() => {
+    const user = localStorage.getItem('user');
+    if (user) {
+      const current_user = JSON.parse(user);
+      current_user.gender = current_user.gender.toString();
+      const dateOfBirth = new Date(current_user.dateOfBirth);
+      current_user.dateOfBirth = dateOfBirth.toISOString().slice(0, 10);
+      form.reset({
+        gender: current_user.gender.toString() || '1',
+        dateOfBirth: current_user.dateOfBirth
+          ? new Date(current_user.dateOfBirth).toISOString().slice(0, 10)
+          : '',
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onSubmit = async (data: CreateLichtapHangtuanForm) => {
     setServerMessage(undefined);
@@ -137,13 +123,17 @@ export default function FormTaolichtapHangtuan() {
                     <FormControl>
                       <RadioGroupItem value="1" id="male" />
                     </FormControl>
-                    <FormLabel htmlFor="male" data-is-radio>Nam</FormLabel>
+                    <FormLabel htmlFor="male" data-is-radio>
+                      Nam
+                    </FormLabel>
                   </FormItem>
                   <FormItem className="flex items-center gap-2">
                     <FormControl>
                       <RadioGroupItem value="0" id="female" />
                     </FormControl>
-                    <FormLabel htmlFor="female" data-is-radio>Nữ</FormLabel>
+                    <FormLabel htmlFor="female" data-is-radio>
+                      Nữ
+                    </FormLabel>
                   </FormItem>
                 </RadioGroup>
               </FormControl>
@@ -213,13 +203,13 @@ export default function FormTaolichtapHangtuan() {
                   onValueChange={(v) => field.onChange(Number(v))}
                   className="grid grid-cols-1 sm:grid-cols-3 gap-2"
                 >
-                  {GOAL_VALUES.map((g) => (
-                    <FormItem key={g} className="flex items-center gap-2">
+                  {GOALS.map((g) => (
+                    <FormItem key={g.id} className="flex items-center gap-2">
                       <FormControl>
-                        <RadioGroupItem value={String(g)} id={`goal-${g}`} />
+                        <RadioGroupItem value={String(g.id)} id={`goal-${g.id}`} />
                       </FormControl>
-                      <FormLabel htmlFor={`goal-${g}`} data-is-radio>
-                        {GOAL_LABELS[g]}
+                      <FormLabel htmlFor={`goal-${g.id}`} data-is-radio>
+                        {g.name}
                       </FormLabel>
                     </FormItem>
                   ))}
@@ -230,7 +220,7 @@ export default function FormTaolichtapHangtuan() {
           )}
         />
 
-        {/* Nhóm cơ */}
+        {/* Nhóm cơ (dùng MUSCLE_GROUPS) */}
         <FormField
           control={form.control}
           name="muscles"
@@ -238,22 +228,22 @@ export default function FormTaolichtapHangtuan() {
             <FormItem>
               <FormLabel>Nhóm cơ</FormLabel>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {MUSCLE_IDS.map((id) => {
-                  const checked = (field.value ?? []).includes(id);
+                {MUSCLE_GROUPS.map((g) => {
+                  const checked = (field.value ?? []).includes(g.id);
                   return (
-                    <label key={id} className="flex items-center gap-2">
+                    <label key={g.id} className="flex items-center gap-2">
                       <Checkbox
                         checked={checked}
                         onCheckedChange={(v) => {
-                          const val = Number(id);
+                          const val = g.id;
                           if (v) {
                             field.onChange([...(field.value || []), val]);
                           } else {
-                            field.onChange((field.value || []).filter((x) => x !== val));
+                            field.onChange((field.value || []).filter((x: number) => x !== val));
                           }
                         }}
                       />
-                      <span>{MUSCLE_LABELS[id]}</span>
+                      <span>{g.name}</span>
                     </label>
                   );
                 })}

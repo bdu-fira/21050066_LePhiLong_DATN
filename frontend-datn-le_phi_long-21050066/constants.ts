@@ -63,17 +63,53 @@ export const JOINT_ANGLE_OPTIONS = [
   },
 ];
 
-export const LOOKING_ANGLE = [
+export const MUSCLE_GROUPS = [
+  // Push (đẩy)
+  { id: 0,  name: "Ngực" },
+  { id: 1,  name: "Vai" },
+  { id: 2,  name: "Tay sau" },
+
+  // Pull (kéo)
+  { id: 3,  name: "Lưng" },
+  { id: 4,  name: "Cầu vai" },
+  { id: 5,  name: "Tay trước" },
+  { id: 6,  name: "Cẳng tay" },
+
+  // Core
+  { id: 7,  name: "Bụng" },
+  { id: 8,  name: "Thắt lưng" },
+
+  // Lower body
+  { id: 9,  name: "Mông" },
+  { id: 10, name: "Đùi trước" },
+  { id: 11, name: "Đùi sau" },
+  { id: 12, name: "Bắp chân" },
+];
+
+export const GOALS = [
   {
-    "value": -1,
-    "display": 'Xéo, nhìn qua trái',
+    id: 0,
+    name: 'Giữ dáng',
   },
   {
-    "value": 0,
-    "display": 'Trước mặt',
+    id: 1,
+    name: 'Giảm mỡ',
   },
   {
-    "value": 1,
-    "display": 'Xéo, nhìn qua phải',
-  },
+    id: 2,
+    name: 'Tăng cơ'
+  }
 ]
+
+// mixamoBoneMap.ts
+export const MIXAMO_MAP: any = {
+  mixamorigLeftArm: [11,13],   
+  mixamorigLeftForeArm: [13,15],    
+  mixamorigRightArm: [12,14],
+  mixamorigRightForeArm: [14,16],
+  mixamorigLeftUpLeg: [23,25],    
+  mixamorigLeftLeg:   [25,27],      
+  mixamorigRightUpLeg:[24,26],
+  mixamorigRightLeg:  [26,28],
+};
+

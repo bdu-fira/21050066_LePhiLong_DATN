@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { trainPoseClassifier } from "@/lib/ModelTrainer";
 import { extract, extractFromImages, initPoseExtractor } from "@/lib/PoseExtractor";
 import { trainSchema } from "../schemas/formTrainSchema";
+import Pose3DViewer from "./PoseViewer";
 
 export default function FormTrain() {
   // Dùng any cho form data để đơn giản hóa
@@ -297,6 +298,17 @@ export default function FormTrain() {
             </div>
           )}
         </div>
+        <div className="w-full flex items-center justify-center mb-6 min-h-[240px]">
+          {/* 3D viewer */}
+          <div className="w-[400px] max-w-full">
+          <Pose3DViewer points={selectedKeypoints /* mảng [x,y,z] từ poseWorldLandmarks */} height={300} />
+          {!selectedKeypoints && (
+              <div className="text-xs text-muted-foreground mt-2 text-center">
+                Chọn ảnh có keypoints để xem khung xương 3D (kéo để xoay, lăn để zoom).
+              </div>
+            )}
+          </div>
+           </div>
       </div>
 
       {/* CỘT PHẢI: Danh sách ảnh của label đang chọn */}

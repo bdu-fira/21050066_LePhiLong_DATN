@@ -1,258 +1,236 @@
 "use client";
-import { useEffect, useRef } from "react";
 
-export default function FormXemDongtac3D(props: any) {
-  const { label, frameFlat } = props;
-  const canvasRef = useRef<any>(null);
-  const ref = useRef<any>({ inited: false, ready: false, lastLandmarks: null });
+import { useEffect, useRef, useState } from "react";
+import * as THREE from "three";
 
-  // flat -> [[x,y,z], ...]
-  const toXYZ = (flat: any) => {
-    const out: any[] = [];
-    for (let i = 0; i < (flat?.length || 0); i += 3) out.push([flat[i], flat[i + 1], flat[i + 2]]);
-    return out;
+const EDGES: [number, number][] = [
+  [11,12],[11,23],[12,24],[23,24],[11,13],[13,15],[12,14],[14,16],
+  [11,7],[12,8],[7,9],[8,10],[9,0],[10,0],
+  [23,25],[25,27],[27,29],[29,31],
+  [24,26],[26,28],[28,30],[30,32],
+];
+
+// ---- Parse frame đa định dạng + map sang hệ trục Three.js ----
+function parseFrame(frame: any): THREE.Vector3[] {
+  const out: THREE.Vector3[] = [];
+  if (!frame) return out;
+
+  const push = (x: number, y: number, z: number) => {
+    // MediaPipe: y hướng xuống camera -> lật Y; z dương ra trước -> đảo để nhìn vào màn hình
+    const X = Number.isFinite(x) ? x : 0;
+    const Y = Number.isFinite(y) ? -y : 0;   // flip Y
+    const Z = Number.isFinite(z) ? -z : 0;   // flip Z nhẹ cho trực quan
+    out.push(new THREE.Vector3(X, Y, Z));
   };
 
-  // index Mediapipe dùng để lấy các khớp chính
-  const MP: any = { L_SHOULDER:11, R_SHOULDER:12, L_ELBOW:13, R_ELBOW:14, L_WRIST:15, R_WRIST:16, L_HIP:23, R_HIP:24, L_KNEE:25, R_KNEE:26, L_ANKLE:27, R_ANKLE:28 };
+  if (Array.isArray(frame)) {
+    if (typeof frame[0] === "number") {
+      for (let i = 0; i + 2 < frame.length; i += 3) push(+frame[i], +frame[i+1], +frame[i+2]);
+    } else if (Array.isArray(frame[0])) {
+      for (const p of frame) push(+(p?.[0] ?? 0), +(p?.[1] ?? 0), +(p?.[2] ?? 0));
+    } else if (typeof frame[0] === "object") {
+      for (const p of frame) push(+(p?.x ?? p?.X ?? 0), +(p?.y ?? p?.Y ?? 0), +(p?.z ?? p?.Z ?? 0));
+    }
+  }
+  return out;
+}
 
-  // tên xương Mixamo bạn gửi
-  const BONE: any = {
-    HIPS:"Hips", SPINE:"Spine", SPINE1:"Spine1", SPINE2:"Spine2", NECK:"Neck", HEAD:"Head",
-    L_SHOULDER:"LeftShoulder", L_UPPER_ARM:"LeftArm", L_LOWER_ARM:"LeftForeArm", L_HAND:"LeftHand",
-    R_SHOULDER:"RightShoulder", R_UPPER_ARM:"RightArm", R_LOWER_ARM:"RightForeArm", R_HAND:"RightHand",
-    L_UP_LEG:"LeftUpLeg", L_LOWER_LEG:"LeftLeg", L_FOOT:"LeftFoot",
-    R_UP_LEG:"RightUpLeg", R_LOWER_LEG:"RightLeg", R_FOOT:"RightFoot",
-  };
+function centerScale(pts: THREE.Vector3[]) {
+  if (!pts.length) return pts;
+  // center
+  const c = new THREE.Vector3();
+  pts.forEach(p => c.add(p));
+  c.divideScalar(pts.length);
+  let maxR = 0;
+  const centered = pts.map(p => {
+    const q = p.clone().sub(c);
+    maxR = Math.max(maxR, q.length());
+    return q;
+  });
+  // scale vừa khung nhìn
+  const s = maxR > 0 ? 1.6 / maxR : 1;
+  centered.forEach(p => p.multiplyScalar(s));
+  return centered;
+}
 
-  const strip = (n: any) => (n || "").replace(/^mixamorig:/i, "");
-  const keyize = (n: any) => strip(n).toLowerCase();
+export default function Viewer3D() {
+  const mountRef = useRef<HTMLDivElement>(null);
+  const initializedRef = useRef(false);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const pointsRef = useRef<THREE.Points | null>(null);
+  const linesRef = useRef<THREE.LineSegments | null>(null);
 
-  // helper quay bone theo hướng from->to (world-space, đơn giản cho pose tĩnh)
-  const setBoneDir = (THREE: any, bone: any, from: any, to: any) => {
-    if (!bone) return;
-    const dir = to.clone().sub(from);
-    if (dir.length() < 1e-6) return;
-    dir.normalize();
-    const zAxis = new THREE.Vector3(0, 0, 1);
-    const q = new THREE.Quaternion().setFromUnitVectors(zAxis, dir);
-    bone.quaternion.copy(q);
-    bone.updateMatrixWorld(true);
-  };
+  const [data, setData] = useState<any>(null);
+  const [labels, setLabels] = useState<string[]>([]);
+  const [labelIdx, setLabelIdx] = useState(0);
+  const [frameIdx, setFrameIdx] = useState(0);
 
+  // Load JSON
   useEffect(() => {
-    if (!canvasRef.current || ref.current.inited) return;
-    ref.current.inited = true;
+    fetch("/models/grouped_pose_keypoints.json")
+      .then(r => r.json())
+      .then((d:any) => { setData(d); setLabels(Object.keys(d || {})); })
+      .catch(console.error);
+  }, []);
 
-    const init = async () => {
-      const THREE = await import("three");
-      const { FBXLoader } = await import("three/examples/jsm/loaders/FBXLoader.js");
-      const { OrbitControls } = await import("three/examples/jsm/controls/OrbitControls.js");
+  // Init ONE canvas (no animation loop)
+  useEffect(() => {
+    if (initializedRef.current || !mountRef.current) return;
+    initializedRef.current = true;
 
-      // scene / camera / renderer
-      const scene: any = new THREE.Scene();
-      scene.background = new THREE.Color(0x161718);
+    // clear để chắc chắn không còn canvas cũ (HMR/StrictMode)
+    mountRef.current.innerHTML = "";
 
-      const camera: any = new THREE.PerspectiveCamera(45, 1, 0.1, 4000);
-      camera.position.set(0, 1.6, 3);
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x2b2b2b);
 
-      const renderer: any = new THREE.WebGLRenderer({ canvas: canvasRef.current, antialias: true });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-      const resize = () => {
-        const w = canvasRef.current?.clientWidth || window.innerWidth;
-        const h = canvasRef.current?.clientHeight || window.innerHeight;
-        renderer.setSize(w, h, false);
-        camera.aspect = w / h;
-        camera.updateProjectionMatrix();
-      };
-      window.addEventListener("resize", resize);
-      resize();
+    const camera = new THREE.PerspectiveCamera(50, 1, 0.01, 100);
+    camera.position.set(0, 0.8, 3);
+    camera.lookAt(0, 0, 0);
 
-      // lights + ground
-      scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-      const dir = new THREE.DirectionalLight(0xffffff, 0.9);
-      dir.position.set(5, 8, 6);
-      scene.add(dir);
-      scene.add(new THREE.GridHelper(10, 10));
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
+    renderer.domElement.style.display = "block";
+    mountRef.current.appendChild(renderer.domElement);
 
-      // controls
-      const controls: any = new OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
+    // Visual refs
+    const grid = new THREE.GridHelper(10, 10);
+    grid.position.y = -0.8;
+    scene.add(grid);
+    scene.add(new THREE.AxesHelper(0.6));
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x222222, 1.15));
 
-      // fallback cube
-      const fallback = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.2,0.2), new THREE.MeshStandardMaterial());
-      fallback.position.set(0,1,0);
-      scene.add(fallback);
+    // Empty geometries (rebuild theo N)
+    const pts = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ size: 0.06 }));
+    const lns = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial());
+    scene.add(pts, lns);
 
-      // load FBX (giữ nguyên scale gốc)
-      let fbx: any = null;
-      let boneByName: any = {};
+    sceneRef.current = scene;
+    cameraRef.current = camera;
+    rendererRef.current = renderer;
+    pointsRef.current = pts;
+    linesRef.current = lns;
 
-      // helper thu thập bones từ FBX (cả tree và skeleton của skinned mesh)
-      const collectBones = (root: any) => {
-        const found: any[] = [];
-        root.traverse((o: any) => {
-          if (o.isBone) found.push(o);
-          if (o.isSkinnedMesh && o.skeleton && Array.isArray(o.skeleton.bones)) {
-            o.skeleton.bones.forEach((b: any) => found.push(b));
-          }
-        });
-        // unique theo id
-        const uniq = Array.from(new Map(found.map((b: any) => [b.id, b])).values());
-        // map theo nhiều key
-        uniq.forEach((b: any) => {
-          const name = b.name || "";
-          boneByName[name] = b;
-          boneByName["mixamorig:" + strip(name)] = b; // phòng khi bạn truyền tên chưa có prefix
-          boneByName[strip(name)] = b;
-          boneByName[keyize(name)] = b;
-          boneByName[keyize("mixamorig:" + strip(name))] = b;
-        });
-        // log danh sách để đối chiếu
-        const available = uniq.map((b: any) => b.name);
-        console.log("[Bones available]", available);
-      };
-
-      try {
-        const loader = new FBXLoader();
-        fbx = await loader.loadAsync("/character/char.fbx"); // trong /public
-        scene.add(fbx);
-
-        // reset bind pose nếu có
-        fbx.traverse((o:any) => { if (o.isSkinnedMesh) o.skeleton?.pose(); });
-
-        // căn camera theo bbox (không đổi scale)
-        const meshes: any[] = [];
-        fbx.traverse((o:any)=>{ if (o.isMesh) meshes.push(o); });
-        if (meshes.length) {
-          const box = meshes.reduce((acc:any, m:any)=> acc.expandByObject(m), new THREE.Box3());
-          const size = new THREE.Vector3(); box.getSize(size);
-          const center = new THREE.Vector3(); box.getCenter(center);
-          fbx.position.sub(center);
-
-          const maxDim = Math.max(size.x, size.y, size.z);
-          const dist = maxDim * 1.5 + 1;
-          camera.position.set(0, size.y * 0.5, dist);
-          camera.lookAt(0, size.y * 0.5, 0);
-          resize();
-        }
-
-        // thu thập bones (QUAN TRỌNG)
-        collectBones(fbx);
-
-        // kiểm tra đủ các bone chính chưa
-        const need = [
-          "Hips","Spine","Spine1","Spine2","Neck","Head",
-          "LeftShoulder","LeftArm","LeftForeArm","LeftHand",
-          "RightShoulder","RightArm","RightForeArm","RightHand",
-          "LeftUpLeg","LeftLeg","LeftFoot","RightUpLeg","RightLeg","RightFoot"
-        ];
-        const missing = need.filter((n:any)=> !boneByName[n] && !boneByName["mixamorig:"+n] && !boneByName[keyize(n)]);
-        if (missing.length) console.warn("[Bones missing]", missing);
-
-        // đã có model -> bỏ cube
-        scene.remove(fallback);
-      } catch (e) {
-        console.error("[FBX] Load error:", e);
-      }
-
-      const v3 = (x:any,y:any,z:any)=> new THREE.Vector3(x,y,z);
-      const bn = (n:any)=> boneByName[n] || boneByName["mixamorig:"+n] || boneByName[keyize(n)];
-
-      // ——— áp pose từ landmarks
-      const applyPose = (landmarks:any[]) => {
-        if (!landmarks?.length || !fbx) return;
-
-        const S = 1.4; // chuyển hệ toạ độ mediapipe -> world
-        const toV = (p:any)=> v3((p[0]-0.5)*S, (1-p[1])*S*1.4, (p[2]||0)*S*0.6);
-
-        const vHipL = toV(landmarks[MP.L_HIP]);
-        const vHipR = toV(landmarks[MP.R_HIP]);
-        const vShL  = toV(landmarks[MP.L_SHOULDER]);
-        const vShR  = toV(landmarks[MP.R_SHOULDER]);
-        const vElL  = toV(landmarks[MP.L_ELBOW]);
-        const vElR  = toV(landmarks[MP.R_ELBOW]);
-        const vWrL  = toV(landmarks[MP.L_WRIST]);
-        const vWrR  = toV(landmarks[MP.R_WRIST]);
-        const vKnL  = toV(landmarks[MP.L_KNEE]);
-        const vKnR  = toV(landmarks[MP.R_KNEE]);
-        const vAnL  = toV(landmarks[MP.L_ANKLE]);
-        const vAnR  = toV(landmarks[MP.R_ANKLE]);
-
-        const hipsMid = vHipL.clone().add(vHipR).multiplyScalar(0.5);
-        const shouldersMid = vShL.clone().add(vShR).multiplyScalar(0.5);
-
-        const hips = bn(BONE.HIPS);
-        if (hips) { hips.position.copy(hipsMid); hips.updateMatrixWorld(true); }
-
-        // Torso
-        setBoneDir(THREE, bn(BONE.SPINE),  hipsMid, shouldersMid);
-        setBoneDir(THREE, bn(BONE.SPINE1), hipsMid, shouldersMid);
-        setBoneDir(THREE, bn(BONE.SPINE2), hipsMid, shouldersMid);
-        setBoneDir(THREE, bn(BONE.NECK),   shouldersMid, shouldersMid.clone().add(v3(0,0.2,0)));
-        setBoneDir(THREE, bn(BONE.HEAD),   shouldersMid.clone().add(v3(0,0.2,0)), shouldersMid.clone().add(v3(0,0.4,0)));
-
-        // Tay trái
-        setBoneDir(THREE, bn(BONE.L_SHOULDER),  shouldersMid, vShL);
-        setBoneDir(THREE, bn(BONE.L_UPPER_ARM), vShL, vElL);
-        setBoneDir(THREE, bn(BONE.L_LOWER_ARM), vElL, vWrL);
-        setBoneDir(THREE, bn(BONE.L_HAND),      vElL, vWrL);
-
-        // Tay phải
-        setBoneDir(THREE, bn(BONE.R_SHOULDER),  shouldersMid, vShR);
-        setBoneDir(THREE, bn(BONE.R_UPPER_ARM), vShR, vElR);
-        setBoneDir(THREE, bn(BONE.R_LOWER_ARM), vElR, vWrR);
-        setBoneDir(THREE, bn(BONE.R_HAND),      vElR, vWrR);
-
-        // Chân trái
-        setBoneDir(THREE, bn(BONE.L_UP_LEG),    hipsMid, vKnL);
-        setBoneDir(THREE, bn(BONE.L_LOWER_LEG), vKnL,    vAnL);
-        setBoneDir(THREE, bn(BONE.L_FOOT),      vAnL,    vAnL.clone().add(v3(0.2,0,0.2)));
-
-        // Chân phải
-        setBoneDir(THREE, bn(BONE.R_UP_LEG),    hipsMid, vKnR);
-        setBoneDir(THREE, bn(BONE.R_LOWER_LEG), vKnR,    vAnR);
-        setBoneDir(THREE, bn(BONE.R_FOOT),      vAnR,    vAnR.clone().add(v3(0.2,0,0.2)));
-
-        fbx.updateMatrixWorld(true);
-      };
-
-      // lưu mọi thứ vào ref
-      ref.current = {
-        ...ref.current,
-        THREE, scene, camera, renderer, controls,
-        applyPose, resize, ready: true,
-      };
-
-      // nếu trước đó đã có label/frame → áp luôn
-      if (ref.current.lastLandmarks) applyPose(ref.current.lastLandmarks);
-
-      // render loop
-      const tick = () => {
-        ref.current.controls?.update?.();
-        ref.current.renderer?.render?.(ref.current.scene, ref.current.camera);
-        ref.current.raf = requestAnimationFrame(tick);
-      };
-      tick();
+    // Resize đúng kích thước container
+    const resize = () => {
+      if (!mountRef.current || !rendererRef.current || !cameraRef.current) return;
+      const w = mountRef.current.clientWidth || window.innerWidth;
+      const h = mountRef.current.clientHeight || window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h, false); // không override CSS
+      renderer.render(scene, camera);
     };
 
-    init();
+    const ro = new ResizeObserver(resize);
+    ro.observe(mountRef.current);
+    resize();
 
     return () => {
-      try {
-        cancelAnimationFrame(ref.current.raf);
-        window.removeEventListener("resize", ref.current.resize);
-        ref.current.renderer?.dispose?.();
-      } catch {}
+      ro.disconnect();
+      renderer.dispose();
+      mountRef.current?.removeChild(renderer.domElement);
     };
   }, []);
 
-  // đổi label/frame → lưu và áp nếu ready
-  useEffect(() => {
-    const lm = toXYZ(frameFlat);
-    ref.current.lastLandmarks = lm;
-    if (ref.current.ready && ref.current.applyPose) ref.current.applyPose(lm);
-  }, [label, frameFlat]);
+  // Build đúng N
+  const ensureGeometry = (N: number) => {
+    if (!pointsRef.current || !linesRef.current) return;
+    const cur = pointsRef.current.geometry.getAttribute("position")?.count || 0;
+    if (cur !== N) {
+      const pAttr = new THREE.BufferAttribute(new Float32Array(N * 3), 3);
+      const pGeom = new THREE.BufferGeometry();
+      pGeom.setAttribute("position", pAttr);
+      pointsRef.current.geometry = pGeom;
 
-  return <canvas ref={canvasRef} style={{ width: "100%", height: "100%", minHeight: 400, display: "block" }} />;
+      const valid = EDGES.filter(([a,b]) => a < N && b < N);
+      const lAttr = new THREE.BufferAttribute(new Float32Array(valid.length * 2 * 3), 3);
+      const lGeom = new THREE.BufferGeometry();
+      lGeom.setAttribute("position", lAttr);
+      (linesRef.current as any).__edges = valid;
+      linesRef.current.geometry = lGeom;
+    }
+  };
+
+  // Vẽ 1 frame
+  const drawFrame = (raw: any) => {
+    if (!pointsRef.current || !linesRef.current) return;
+    const vecs = centerScale(parseFrame(raw));
+    const N = vecs.length;
+    if (!N) return;
+
+    ensureGeometry(N);
+
+    const pPos = pointsRef.current.geometry.getAttribute("position") as THREE.BufferAttribute;
+    for (let i = 0; i < N; i++) {
+      const v = vecs[i];
+      pPos.setXYZ(i, v.x, v.y, v.z);
+    }
+    pPos.needsUpdate = true;
+
+    const edges: [number,number][] = (linesRef.current as any).__edges || [];
+    const lPos = linesRef.current.geometry.getAttribute("position") as THREE.BufferAttribute;
+    edges.forEach(([a,b], i) => {
+      const va = vecs[a], vb = vecs[b];
+      lPos.setXYZ(i*2, va.x, va.y, va.z);
+      lPos.setXYZ(i*2+1, vb.x, vb.y, vb.z);
+    });
+    lPos.needsUpdate = true;
+
+    pointsRef.current.geometry.computeBoundingSphere();
+    linesRef.current.geometry.computeBoundingSphere();
+  };
+
+  const renderNow = () => {
+    if (!rendererRef.current || !sceneRef.current || !cameraRef.current) return;
+    rendererRef.current.render(sceneRef.current, cameraRef.current);
+  };
+
+  // Đổi label/frame -> vẽ 1 lần & render
+  useEffect(() => {
+    if (!data || !labels.length) return;
+    const frames = data[labels[labelIdx]] || [];
+    const idx = Math.min(frameIdx, Math.max(frames.length - 1, 0));
+    if (frames[idx]) {
+      drawFrame(frames[idx]);
+      renderNow();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, labels, labelIdx, frameIdx]);
+
+  // Controls
+  const prevLabel = () => { if (!labels.length) return; setLabelIdx(i => (i - 1 + labels.length) % labels.length); setFrameIdx(0); };
+  const nextLabel = () => { if (!labels.length) return; setLabelIdx(i => (i + 1) % labels.length); setFrameIdx(0); };
+  const prevFrame  = () => setFrameIdx(f => Math.max(0, f - 1));
+  const nextFrame  = () => {
+    if (!data || !labels.length) return;
+    const frames = data[labels[labelIdx]] || [];
+    setFrameIdx(f => Math.min(frames.length - 1, f + 1));
+  };
+
+  const label = labels[labelIdx] || "-";
+  const totalFrames = data?.[label]?.length || 0;
+
+  return (
+    <div style={{ height:"100%", width:"100%", position:"relative", background:"#2b2b2b" }}>
+      <div ref={mountRef} style={{ position:"absolute", inset:0 }} />
+      <div style={{
+        position:"absolute", top:12, left:12, display:"flex", gap:8,
+        background:"rgba(0,0,0,0.55)", padding:"10px 12px", borderRadius:8, color:"#fff",
+        alignItems:"center", fontFamily:"ui-sans-serif, system-ui"
+      }}>
+        <button onClick={prevLabel} style={{padding:"6px 10px"}}>&larr; Label</button>
+        <div style={{minWidth:120, textAlign:"center"}}>Label: <b>{label}</b></div>
+        <button onClick={nextLabel} style={{padding:"6px 10px"}}>Label &rarr;</button>
+        <div style={{width:1, height:24, background:"rgba(255,255,255,0.2)", margin:"0 6px"}} />
+        <button onClick={prevFrame} style={{padding:"6px 10px"}}>&larr; Frame</button>
+        <div>Frame: <b>{totalFrames ? (frameIdx+1) : 0}/{totalFrames}</b></div>
+        <button onClick={nextFrame} style={{padding:"6px 10px"}}>Frame &rarr;</button>
+      </div>
+    </div>
+  );
 }

@@ -19,7 +19,7 @@ export async function initPoseExtractor() {
       locateFile: (file: string) => `/mediapipe/pose/${file}`,
     });
     pose.setOptions({
-      modelComplexity: 1,
+      modelComplexity: 2,
       smoothLandmarks: true,
       enableSegmentation: true,
       minDetectionConfidence: 0.8,
@@ -33,9 +33,9 @@ export async function initPoseExtractor() {
   
     return new Promise((resolve, reject) => {
       pose.onResults((results: any) => {
-        if (results?.poseLandmarks) {
+        if (results?.poseWorldLandmarks) {
           // Kết quả là mảng [x, y, z]
-          resolve(results.poseLandmarks.map((lm: any) => [lm.x, lm.y, lm.z]));
+          resolve(results.poseWorldLandmarks.map((lm: any) => [lm.x, lm.y, lm.z]));
         } else {
           resolve(null);
         }

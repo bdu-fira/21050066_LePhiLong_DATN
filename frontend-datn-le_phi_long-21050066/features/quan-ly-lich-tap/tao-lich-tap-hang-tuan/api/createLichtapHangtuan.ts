@@ -3,11 +3,10 @@ import axios from 'axios';
 
 export type ApiFieldErrors = Record<string, string>;
 
-/** TODO: Chỉnh endpoint này cho khớp backend của bạn */
 const ENDPOINT =
-  `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/lich-tap/create`;
+  `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/schedule/create`;
 
-export async function createLichtapHangtuan(
+export async function createWeeklySchedule(
   data: any
 ) {
   try {

@@ -1,8 +1,7 @@
 import { z } from 'zod';
 import { MUSCLE_GROUPS } from '@/constants';
 
-/** 1=giữ dáng, 2=giảm mỡ, 3=tăng cơ */
-export const GOAL_VALUES = [1, 2, 3] as const;
+export const GOAL_VALUES = [0, 1, 2] as const;
 
 /** Lấy danh sách id hợp lệ từ MUSCLE_GROUPS */
 export const MUSCLE_GROUP_IDS = MUSCLE_GROUPS.map(g => g.id);

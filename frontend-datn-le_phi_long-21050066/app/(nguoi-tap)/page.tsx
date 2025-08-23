@@ -1,4 +1,4 @@
-import LichTap from "@/features/trang-chu/LichTap";
+import FormLichtap from "@/features/trang-chu/forms/LichTap";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default function TrangChu() {
   return (
     <div className="max-w-[1200px] mx-auto">
-      <LichTap></LichTap>
+      <FormLichtap></FormLichtap>
     </div>
   );
 }

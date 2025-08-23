@@ -1,52 +1,90 @@
 import * as tf from "@tensorflow/tfjs";
 
-export async function trainPoseClassifier(poseData: Record<string, number[][][]>) {
-  // Chuẩn hóa đầu vào
-  const allData: number[][] = [];
-  const allLabels: number[] = [];
-  const labelNames: string[] = Object.keys(poseData);
+function shuffleWithSeed<T>(arr: T[], seed = 1234): T[] {
+  let s = seed;
+  const rand = () => {
+    s = Math.sin(s) * 10000;
+    return s - Math.floor(s);
+  };
+  return arr
+    .map(v => ({ v, r: rand() }))
+    .sort((a, b) => a.r - b.r)
+    .map(o => o.v);
+}
 
-  // Flatten keypoints
-  Object.entries(poseData).forEach(([label, arr], idx) => {
-    for (const kp of arr) {
-      allData.push(kp.flat()); // [99]
-      allLabels.push(idx);
-    }
+// hàm thêm để export weights thành File
+async function exportModelWeights(model: any) {
+  let weightsFile: File | null = null;
+  const handler: any = {
+    save: async (artifacts: any) => {
+      const blob = new Blob([artifacts.weightData], { type: "application/octet-stream" });
+      weightsFile = new File([blob], "model.weights", { type: "application/octet-stream" });
+      return {
+        modelArtifactsInfo: {
+          dateSaved: new Date(),
+          modelTopologyType: "JSON",
+          modelTopologyBytes: 0,
+          weightDataBytes: artifacts.weightData.byteLength,
+          weightSpecsBytes: 0,
+        },
+      };
+    },
+  };
+  await model.save(handler);
+  return weightsFile;
+}
+
+export async function trainPoseClassifier(poseData: any) {
+  const seed = 42;
+  const labelNames = Object.keys(poseData);
+  const samples: any[] = [];
+  labelNames.forEach((label, idx) => {
+    for (const kp of poseData[label] || []) samples.push({ x: kp.flat(), y: idx, label });
   });
+  if (!samples.length) throw new Error("Không có dữ liệu");
 
-  if (allData.length === 0) throw new Error('Không có dữ liệu keypoints hợp lệ');
+  const shuffled = shuffleWithSeed(samples, seed);
+  const valRatio = 0.33;
+  const train: any[] = [];
+  const val: any[] = [];
 
-  const X = tf.tensor2d(allData); // [num_samples, 99]
-  const y = tf.oneHot(tf.tensor1d(allLabels, "int32"), labelNames.length); // [num_samples, num_labels]
+  for (const name of labelNames) {
+    const per = shuffled.filter(s => s.label === name);
+    const cut = Math.max(1, Math.floor(per.length * valRatio));
+    const perShuf = shuffleWithSeed(per, seed ^ name.length);
+    val.push(...perShuf.slice(0, cut));
+    train.push(...perShuf.slice(cut));
+  }
 
-  // Mô hình đơn giản multi-class classification
+  const Xtr = tf.tensor2d(train.map(s => s.x));
+  const ytr = tf.oneHot(tf.tensor1d(train.map(s => s.y), "int32"), labelNames.length);
+  const Xva = tf.tensor2d(val.map(s => s.x));
+  const yva = tf.oneHot(tf.tensor1d(val.map(s => s.y), "int32"), labelNames.length);
+
+  const ki = tf.initializers.glorotUniform({ seed });
   const model = tf.sequential();
-  model.add(tf.layers.dense({ inputShape: [99], units: 64, activation: "relu" }));
-  model.add(tf.layers.dense({ units: 32, activation: "relu" }));
-  model.add(tf.layers.dense({ units: labelNames.length, activation: "softmax" }));
+  model.add(tf.layers.dense({ inputShape: [99], units: 64, activation: "relu", kernelInitializer: ki }));
+  model.add(tf.layers.dense({ units: 32, activation: "relu", kernelInitializer: ki }));
+  model.add(tf.layers.dense({ units: labelNames.length, activation: "softmax", kernelInitializer: ki }));
 
-  model.compile({
-    optimizer: tf.train.adam(0.001),
-    loss: "categoricalCrossentropy",
-    metrics: ["accuracy"]
-  });
+  model.compile({ optimizer: tf.train.adam(0.001), loss: "categoricalCrossentropy", metrics: ["accuracy"] });
 
   let valAcc = 0;
-
-  await model.fit(X, y, {
-    epochs: 50,
-    batchSize: 8,
-    validationSplit: 0.3,
-    callbacks: {
-      onEpochEnd: (_epoch, logs) => {
-        if (logs?.val_acc !== undefined) valAcc = logs.val_acc as number;
-      }
+  const history = await model.fit(Xtr, ytr, {
+    epochs: 200,
+    batchSize: 9,
+    shuffle: false,
+    validationData: [Xva, yva],
+    callbacks: { 
+      onEpochEnd: (_e, logs) => { 
+        if (logs?.val_acc != null) valAcc = logs.val_acc as number; 
+        console.log(logs!.loss);
+      } 
     }
   });
 
+  // gọi export và trả thêm weightsFile
+  const weightsFile = await exportModelWeights(model);
 
-  const byLabel = Object.fromEntries(Object.entries(poseData).map(([k, arr]) => [k, arr.map(kp => kp.flat())]));
-  (() => { const b=new Blob([JSON.stringify(byLabel,null,2)],{type:"application/json"}); const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u; a.download="poseData_byLabel.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u); })();
-  
-  return { model, labelNames, valAcc };
+  return { model, labelNames, valAcc, history, weightsFile };
 }

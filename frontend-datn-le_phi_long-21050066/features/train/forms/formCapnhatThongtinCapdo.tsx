@@ -4,49 +4,52 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
-import { levelInfoSchema } from '../schemas/formUpdateInfoSchema';
+import { FormCapnhatCapdoSchema } from '../schemas/formCapnhatThongtinBaitapSchema';
+import { updateLevel } from '../api/updateLevel';
 
-type FormData = z.infer<typeof levelInfoSchema>;
+type FormData = z.infer<typeof FormCapnhatCapdoSchema>;
 
 const LEVEL_LABELS = ['Giữ dáng', 'Giảm mỡ', 'Tăng cơ'] as const;
 
-export default function FormLevelInfo({
-  defaultValues,
-  onSubmit,
-}: {
-  defaultValues?: Partial<FormData>;
-  onSubmit?: (data: FormData) => Promise<void> | void;
-}) {
+export default function FormCapnhatThongtinCapdo(props: any) {
+  console.log(props)
   const form = useForm<FormData>({
-    resolver: zodResolver(levelInfoSchema),
+    resolver: zodResolver(FormCapnhatCapdoSchema),
     defaultValues: {
       levels: [
-        { sets: 1, reps: 10 }, // Giữ dáng
-        { sets: 1, reps: 10 }, // Giảm mỡ
-        { sets: 1, reps: 10 }, // Tăng cơ
+        { set: props.levels[0]?.set || 1, rep: props.levels[0]?.rep || 10 }, // Giữ dáng
+        { set: props.levels[1]?.set || 2, rep: props.levels[1]?.rep || 10}, // Giảm mỡ
+        { set: props.levels[2]?.set || 3, rep: props.levels[2]?.rep || 10}, // Tăng cơ
       ],
-      ...(defaultValues || {}),
     },
     mode: 'onChange',
   });
 
-  const [msg, setMsg] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
-  async function handleSubmit(data: FormData) {
+  const [msg, setMsg] = useState<string | null>(null);
+  const [submitting, setubmitting] = useState(false);
+
+  async function onSubmit(data: FormData) {
     setMsg(null);
-    setSubmitting(true);
+    setubmitting(true);
     try {
-      await onSubmit?.(data);
+      const res = await updateLevel({
+        id: props.id,
+        ...data, 
+      });
+      if (res.statusCode !== 200) {
+        setMsg(res.message || 'Có lỗi xảy ra.');
+        return;
+      }
       setMsg('Cập nhật cấp độ thành công.');
     } catch (e: any) {
       setMsg(e?.message || 'Có lỗi xảy ra.');
     }
-    setSubmitting(false);
+    setubmitting(false);
   }
 
   return (
-    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
       <h2 className="text-primary font-bold text-lg underline">Cập nhật thông tin cấp độ</h2>
 
       {form.watch('levels').map((_, idx) => (
@@ -56,7 +59,7 @@ export default function FormLevelInfo({
             type="number"
             min={1}
             max={5}
-            {...form.register(`levels.${idx}.sets`, { valueAsNumber: true })}
+            {...form.register(`levels.${idx}.set`, { valueAsNumber: true })}
             className="border rounded p-2 w-24"
             placeholder="Set (1-5)"
             disabled={submitting}
@@ -65,14 +68,14 @@ export default function FormLevelInfo({
             type="number"
             min={10}
             max={100}
-            {...form.register(`levels.${idx}.reps`, { valueAsNumber: true })}
+            {...form.register(`levels.${idx}.rep`, { valueAsNumber: true })}
             className="border rounded p-2 w-28"
             placeholder="Rep (10-100)"
             disabled={submitting}
           />
           <div className="text-destructive text-xs">
-            {(form.formState.errors.levels?.[idx] as any)?.sets?.message ||
-              (form.formState.errors.levels?.[idx] as any)?.reps?.message}
+            {(form.formState.errors.levels?.[idx] as any)?.set?.message ||
+              (form.formState.errors.levels?.[idx] as any)?.rep?.message}
           </div>
         </div>
       ))}
@@ -88,9 +91,9 @@ export default function FormLevelInfo({
       <button
         type="submit"
         className="w-fit px-4 bg-primary text-white py-2 rounded hover:bg-primary/90 disabled:opacity-50"
-        disabled={submitting}
+        disabled={form.formState.isSubmitting}
       >
-        {submitting ? 'Đang lưu...' : 'Lưu cấp độ'}
+        {form.formState.isSubmitting ? 'Đang lưu...' : 'Lưu cấp độ'}
       </button>
     </form>
   );

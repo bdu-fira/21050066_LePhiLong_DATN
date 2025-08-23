@@ -11,6 +11,8 @@ import { MailerModule } from '@nestjs-modules/mailer';
 import { join } from 'path';
 import { Trainee } from './entities/trainee.entity';
 import { TraineeModule } from './trainee/trainee.module';
+import { ExerciseModule } from './exercise/exercise.module';
+import { ScheduleModule } from './schedule/schedule.module';
 
 @Module({
   imports: [
@@ -25,9 +27,8 @@ import { TraineeModule } from './trainee/trainee.module';
       username: 'root',
       password: '123',
       database: 'ai_fitness',
-      entities: [User, Trainee],
+      entities: [__dirname + '/entities/**/*{.ts,.js}'],
       timezone: '+07:00', 
-      // synchronize: true,
     }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -64,7 +65,9 @@ import { TraineeModule } from './trainee/trainee.module';
       }),
     }),
     UserModule,
-    TraineeModule,    
+    TraineeModule,
+    ExerciseModule,
+    ScheduleModule,    
   ],
   controllers: [AppController],
   providers: [AppService],

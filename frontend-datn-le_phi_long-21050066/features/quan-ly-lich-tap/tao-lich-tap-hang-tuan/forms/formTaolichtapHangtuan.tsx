@@ -18,7 +18,7 @@ import {
   type CreateLichtapHangtuanForm,
 } from '@/features/quan-ly-lich-tap/tao-lich-tap-hang-tuan/schemas/CreateLichtapHangtuanSchema';
 
-import { createLichtapHangtuan } from '@/features/quan-ly-lich-tap/tao-lich-tap-hang-tuan/api/createLichtapHangtuan';
+import { createWeeklySchedule } from '@/features/quan-ly-lich-tap/tao-lich-tap-hang-tuan/api/createLichtapHangtuan';
 import { MUSCLE_GROUPS } from '@/constants';
 import { GOALS } from '@/constants';
 
@@ -35,13 +35,14 @@ export default function FormTaolichtapHangtuan() {
       height: undefined,
       weight: undefined,
       goal: undefined,
-      muscles: [], // mảng id của MUSCLE_GROUPS
+      muscles: [], 
       daysPerWeek: 3,
     },
   });
 
   useEffect(() => {
     const user = localStorage.getItem('user');
+    console.log(user)
     if (user) {
       const current_user = JSON.parse(user);
       current_user.gender = current_user.gender.toString();
@@ -52,16 +53,17 @@ export default function FormTaolichtapHangtuan() {
         dateOfBirth: current_user.dateOfBirth
           ? new Date(current_user.dateOfBirth).toISOString().slice(0, 10)
           : '',
+        height: current_user.trainee.height || undefined,
+        weight: current_user.trainee.weight || undefined,
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onSubmit = async (data: CreateLichtapHangtuanForm) => {
     setServerMessage(undefined);
     setServerStatusCode(undefined);
 
-    const result = await createLichtapHangtuan(data);
+    const result = await createWeeklySchedule(data);
     setServerStatusCode(result?.statusCode);
 
     if (result?.statusCode === 422 && result?.errors) {

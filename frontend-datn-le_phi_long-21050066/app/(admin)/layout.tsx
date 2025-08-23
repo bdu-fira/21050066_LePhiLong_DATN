@@ -61,16 +61,10 @@ export default function MainLayout({
                   <span className="text-xl font-bold tracking-tight text-primary">AI Fitness</span>
                 </div>
                 <nav className="flex flex-col gap-1 mt-4 px-2">
-                  <Link href="/" className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium hover:bg-accent transition-colors">
-                    <Home className="w-5 h-5" /> Trang chủ
+                  <Link href="/admin/dashboard" className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium hover:bg-accent transition-colors">
+                    <Home className="w-5 h-5" /> Dashboard
                   </Link>
-                  <Link href="#" className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium hover:bg-accent transition-colors">
-                    <PlaySquare className="w-5 h-5" /> Xem động tác
-                  </Link>
-                  <Link href="#" className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium hover:bg-accent transition-colors">
-                    <BarChart3 className="w-5 h-5" /> Phân tích
-                  </Link>
-                  <Link href="./train" className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium hover:bg-accent transition-colors">
+                  <Link href="/admin/train" className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium hover:bg-accent transition-colors">
                     <Cog className="w-5 h-5" /> Huấn luyện động tác
                   </Link>
                 </nav>

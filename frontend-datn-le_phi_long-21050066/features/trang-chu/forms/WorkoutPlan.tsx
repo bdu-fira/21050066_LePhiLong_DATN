@@ -1,4 +1,4 @@
-export default function WorkoutPlanSection({ userPlan }) {
+export default function WorkoutPlanSection({ userPlan }: any) {
     // Data mẫu, bạn có thể thay thế bằng props hoặc data fetch từ API
     const muscleGroups = [
       { name: "Ngực", icon: "💪" },

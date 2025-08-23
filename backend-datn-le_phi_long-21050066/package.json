@@ -34,6 +34,7 @@
     "cookie-parser": "^1.4.7",
     "date-fns": "^4.1.0",
     "dayjs": "^1.11.13",
+    "multer": "^2.0.2",
     "mysql2": "^3.14.2",
     "nodemailer": "^7.0.5",
     "reflect-metadata": "^0.2.2",

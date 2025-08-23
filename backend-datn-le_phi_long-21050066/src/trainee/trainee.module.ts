@@ -5,11 +5,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Trainee } from 'src/entities/trainee.entity';
 import { User } from 'src/entities/user.entity';
 import { UserModule } from 'src/user/user.module';
+import { Schedule } from 'src/entities/schedule.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Trainee]),
-    forwardRef(() => UserModule), // <-- Sửa ở đây!
+    TypeOrmModule.forFeature([User, Trainee, Schedule]),
+    forwardRef(() => UserModule), 
   ],
   controllers: [TraineeController],
   providers: [TraineeService],

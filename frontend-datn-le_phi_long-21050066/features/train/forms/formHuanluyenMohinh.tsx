@@ -7,20 +7,24 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { cn } from "@/lib/utils";
 import { trainPoseClassifier } from "@/lib/ModelTrainer";
 import { extract, extractFromImages, initPoseExtractor } from "@/lib/PoseExtractor";
-import { trainSchema } from "../schemas/formTrainSchema";
+import { trainSchema } from "../schemas/formHuanluyenBaitapSchema";
 import Pose3DViewer from "./PoseViewer";
+import FormCapnhatTieuchi from "./formCapnhatTieuchi";
+import { updateModel } from "../api/updateModel";
 
-export default function FormTrain() {
-  // Dùng any cho form data để đơn giản hóa
+export default function FormHuanluyenMohinh(props: any) {
   const form = useForm<any>({
     resolver: zodResolver(trainSchema),
     defaultValues: {
-      actionName: "train",
+      id: props.id,
+      name: props?.exercise?.name || "",
       imageLabels: [
-        { label: "Label 1", images: [] },
-        { label: "Label 2", images: [] },
-        { label: "Label 3", images: [] },
+        { label: props.positions[0].name, images: [] },
+        { label: props.positions[1].name, images: [] },
+        { label: props.positions[2].name, images: [] },
       ],
+      lastTrainResult: props?.exercise?.lastTrainResult || null,
+      path: null,
     },
     mode: "onChange",
   });
@@ -31,6 +35,7 @@ export default function FormTrain() {
   });
 
   const watchedImageLabels: any[] = useWatch({ control: form.control, name: "imageLabels" });
+  const watchedAcc = useWatch({ control: form.control, name: "lastTrainResult" });
 
   const [poseExtractor, setPoseExtractor] = useState<any>();
   const [activeLabelIdx, setActiveLabelIdx] = useState(0);
@@ -45,9 +50,14 @@ export default function FormTrain() {
   const [trainResultMsg, setTrainResultMsg] = useState<string | null>(null);
   const [training, setTraining] = useState(false);
 
-  console.log(form.formState.errors)
+  // Giữ file weights để gửi backend
+  const [modelFile, setModelFile] = useState<any>(null);
+  const isTrained = !!modelFile; // trạng thái đã huấn luyện trong phiên hiện tại
 
-  // Khởi tạo PoseExtractor
+  // Lưu mô hình (API)
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+
   useEffect(() => {
     (async () => {
       try {
@@ -58,12 +68,10 @@ export default function FormTrain() {
     })();
   }, []);
 
-  // Sync tên label vào state chỉnh sửa
   useEffect(() => {
     setEditingLabels(labelFields.map((l: any) => l.label));
   }, [labelFields]);
 
-  // Vẽ skeleton overlay
   useEffect(() => {
     if (!selectedImage || !selectedKeypoints || !imgRef.current || !canvasRef.current) return;
     const imgElem = imgRef.current as HTMLImageElement;
@@ -103,7 +111,6 @@ export default function FormTrain() {
     });
   }, [selectedImage, selectedKeypoints]);
 
-  // Chọn ảnh + rút trích 1 ảnh (cache)
   function handleSelectImage(img: any) {
     setSelectedImage({ url: img.preview, label: img.customName, file: img.file });
     if (keypointCache[img.customName]) {
@@ -122,7 +129,6 @@ export default function FormTrain() {
     }
   }
 
-  // Upload ảnh cho 1 label
   function handleImageUpload(e: any, labelIdx: number) {
     const files = e.target.files;
     if (!files?.length) return;
@@ -156,13 +162,15 @@ export default function FormTrain() {
     form.setValue(`imageLabels.${labelIdx}.images`, next, { shouldDirty: true, shouldValidate: true });
   }
 
-  // Train – chỉ gọi lại extractFromImages + trainPoseClassifier
-  async function handleTrain(data: any) {
+  // HUẤN LUYỆN: không gọi API
+  async function handleTrain() {
+    const data = form.getValues();
     setFormStatus("");
     setTrainResultMsg(null);
+    setSaving(false);
+    setSaveMsg(null);
     setTraining(true);
 
-    // Ràng buộc runtime theo use case: đúng 3 label, 10–50 ảnh mỗi label, tên label hợp lệ
     const groups = data.imageLabels || [];
     if (groups.length !== 3) {
       setFormStatus("Cần có đúng 03 label để huấn luyện.");
@@ -186,7 +194,11 @@ export default function FormTrain() {
       const poseData = await extractFromImages(allImages, poseExtractor);
 
       setFormStatus("Đang huấn luyện model...");
-      const { valAcc } = await trainPoseClassifier(poseData);
+      const { valAcc, weightsFile } = await trainPoseClassifier(poseData);
+
+      // lưu accuracy và trạng thái đã huấn luyện
+      form.setValue("lastTrainResult", valAcc, { shouldDirty: true, shouldValidate: true });
+      setModelFile(weightsFile || null);
 
       if (valAcc < 0.7) {
         setTrainResultMsg(`Độ chính xác thấp: ${(valAcc * 100).toFixed(2)}%. Hãy bổ sung/điều chỉnh dữ liệu.`);
@@ -197,6 +209,7 @@ export default function FormTrain() {
     } catch (err: any) {
       setFormStatus("Có lỗi: " + (err?.message || String(err)));
       setTrainResultMsg(null);
+      setModelFile(null);
     }
     setTraining(false);
 
@@ -206,19 +219,63 @@ export default function FormTrain() {
     }
   }
 
+  // LƯU MÔ HÌNH: chỉ nút này mới gọi API, chặn nếu chưa huấn luyện
+  async function handleSave() {
+    if (!isTrained) {
+      setSaveMsg("Bạn cần huấn luyện mô hình trước khi lưu.");
+      return;
+    }
+    const data = form.getValues();
+    setSaveMsg(null);
+    setSaving(true);
+    try {
+      const res = await updateModel({
+        id: props.id,
+        accuracy: data.lastTrainResult ?? undefined,
+        modelFile: modelFile || undefined,
+      });
+      setSaveMsg(res.statusCode === 200 ? "Lưu mô hình thành công." : (res.message || "Có lỗi khi lưu mô hình."));
+    } catch (e: any) {
+      setSaveMsg(e?.message || "Có lỗi khi lưu mô hình.");
+    }
+    setSaving(false);
+  }
+
   return (
     <div className="w-full h-full flex flex-row bg-white overflow-hidden">
       {/* CỘT TRÁI: 3 label cố định + Train */}
       <div className="flex-1 p-4 md:p-6 overflow-auto border-r h-full flex flex-col">
-        <form onSubmit={form.handleSubmit(handleTrain)} className="space-y-6">
+        {/* chặn submit mặc định để Enter không gọi gì cả */}
+        <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
           <h2 className="text-primary font-bold text-lg underline">Huấn luyện mô hình</h2>
+          <p>Lưu ý:</p>
+          <p>- Hãy upload các động tác của bài tập theo thứ tự label.</p>
+          <p>- Thứ tự label sẽ giúp hệ chuyên gia quyết định xem người tập đang tập đúng thứ tự các động tác hay không.</p>
+
+          {/* Trạng thái mô hình */}
+          <div className="flex items-center gap-3">
+            {typeof watchedAcc === "number" && (
+              <div className="text-sm text-green-600">
+                Accuracy hiện tại: {(watchedAcc * 100).toFixed(2)}%
+              </div>
+            )}
+            <span
+              className={cn(
+                "text-xs px-2 py-1 rounded",
+                isTrained ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+              )}
+              title={isTrained ? "Đã huấn luyện trong phiên này" : "Chưa huấn luyện trong phiên này"}
+            >
+              {isTrained ? "ĐÃ HUẤN LUYỆN" : "CHƯA HUẤN LUYỆN"}
+            </span>
+          </div>
 
           <div className="flex flex-col gap-4">
             {labelFields.map((label: any, labelIdx: number) => (
               <div
                 key={label.id}
                 className={cn(
-                  "border rounded-lg p-3 bg-muted w-fit",
+                  "border rounded-lg p-3",
                   activeLabelIdx === labelIdx && "ring-2 ring-primary"
                 )}
                 tabIndex={0}
@@ -241,7 +298,7 @@ export default function FormTrain() {
                     onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
                     placeholder={`Tên label ${labelIdx + 1}`}
                     className="border rounded p-1 px-2 text-sm w-44 font-semibold"
-                    disabled={training}
+                    disabled={training || saving}
                   />
                   <button
                     type="button"
@@ -253,6 +310,7 @@ export default function FormTrain() {
                     Chọn
                   </button>
                 </div>
+
                 <label className="bg-green-700 p-2 rounded text-white mb-2 w-fit block">
                   Tải hình lên
                   <input
@@ -261,30 +319,45 @@ export default function FormTrain() {
                     accept="image/*"
                     onChange={(e) => handleImageUpload(e, labelIdx)}
                     className="mb-2 hidden"
-                    disabled={training}
+                    disabled={training || saving}
                     onClick={(e) => e.stopPropagation()}
                   />
                 </label>
 
                 <div className="text-xs text-muted-foreground">Cần từ 10 đến 50 ảnh cho mỗi label.</div>
+                <hr />
+                <FormCapnhatTieuchi id={props.id} positionID={props.positions[labelIdx].id} evaluationCriteria={props.positions[labelIdx].evaluationCriteria} />
               </div>
             ))}
           </div>
 
-          <button
-            type="submit"
-            className="w-fit px-4 mt-2 bg-primary text-white py-2 rounded hover:bg-primary/90 disabled:opacity-50"
-            disabled={training}
-          >
-            {training ? "Đang xử lý..." : "Huấn luyện mô hình"}
-          </button>
+          <div className="flex items-center justify-between mt-4">
+            <button
+              type="button"
+              className="w-fit px-4 mt-2 bg-primary text-white py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+              onClick={handleTrain}
+              disabled={training || saving}
+            >
+              {training ? "Đang xử lý..." : "Huấn luyện mô hình"}
+            </button>
+
+            <button
+              type="button"
+              className="w-fit px-4 mt-2 bg-primary text-white py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+              onClick={handleSave}
+              disabled={training || saving || !isTrained} // chặn lưu nếu chưa huấn luyện
+            >
+              {saving ? "Đang lưu..." : "Lưu mô hình"}
+            </button>
+          </div>
         </form>
 
         <div className="mt-4 text-destructive">{formStatus}</div>
         {trainResultMsg && <div className="text-green-600 font-semibold mt-2">{trainResultMsg}</div>}
+        {saveMsg && <div className="text-primary font-semibold mt-2">{saveMsg}</div>}
       </div>
 
-      {/* CỘT GIỮA: Ảnh lớn + canvas overlay skeleton */}
+      {/* CỘT GIỮA */}
       <div className="flex flex-col items-center justify-start min-w-[400px] max-w-[430px] w-[22vw] h-full border-x pt-8">
         <div className="w-full flex items-center justify-center mb-6 min-h-[240px]">
           {selectedImage ? (
@@ -299,20 +372,19 @@ export default function FormTrain() {
           )}
         </div>
         <div className="w-full flex items-center justify-center mb-6 min-h-[240px]">
-          {/* 3D viewer */}
           <div className="w-[400px] max-w-full">
-          <Pose3DViewer points={selectedKeypoints /* mảng [x,y,z] từ poseWorldLandmarks */} height={300} />
-          {!selectedKeypoints && (
+            <Pose3DViewer points={selectedKeypoints} height={300} />
+            {!selectedKeypoints && (
               <div className="text-xs text-muted-foreground mt-2 text-center">
                 Chọn ảnh có keypoints để xem khung xương 3D (kéo để xoay, lăn để zoom).
               </div>
             )}
           </div>
-           </div>
+        </div>
       </div>
 
-      {/* CỘT PHẢI: Danh sách ảnh của label đang chọn */}
-      <div className="bg-white p-4 overflow-auto max-h-full border-l h-full flex flex-col">
+      {/* CỘT PHẢI */}
+      <div className="bg-white p-4 overflow-auto max_h-full border-l h-full flex flex-col">
         <h3 className="font-semibold mb-3">Ảnh của label đã chọn</h3>
         {activeLabelIdx < 0 || !watchedImageLabels?.[activeLabelIdx] ? (
           <div className="text-muted-foreground text-sm">Chọn label ở bên trái để xem hình.</div>

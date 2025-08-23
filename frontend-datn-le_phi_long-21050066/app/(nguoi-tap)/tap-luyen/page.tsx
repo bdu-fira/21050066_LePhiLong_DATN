@@ -1,10 +1,10 @@
 'use client';
 import React, { useRef, useState } from 'react';
-import FooterPageTapLuyen from '@/features/tap-luyen/footer';
-import HeaderPageTapLuyen from '@/features/tap-luyen/header';
-import InputSection, { PoseState } from '@/features/tap-luyen/inputSection';
-import MonitorSection from '@/features/tap-luyen/monitorSection';
-import { JointAngles } from '@/features/tap-luyen/jointFeedBack';
+import FooterPageTapLuyen from '@/features/giam-sat-tap-luyen/tap-luyen/footer';
+import HeaderPageTapLuyen from '@/features/giam-sat-tap-luyen/tap-luyen/header';
+import InputSection, { PoseState } from '@/features/giam-sat-tap-luyen/tap-luyen/inputSection';
+import MonitorSection from '@/features/giam-sat-tap-luyen/tap-luyen/monitorSection';
+import { JointAngles } from '@/features/giam-sat-tap-luyen/tap-luyen/jointFeedBack';
 
 const RIGHT_SEQUENCE: PoseState[] = ["standing", "mid_curl", "full_curl", "mid_curl", "standing"];
 

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { MUSCLE_GROUPS } from '@/constants';
 
-export const GOAL_VALUES = [0, 1, 2] as const;
+export const GOAL_VALUES = [1, 2, 3] as const;
 
 /** Lấy danh sách id hợp lệ từ MUSCLE_GROUPS */
 export const MUSCLE_GROUP_IDS = MUSCLE_GROUPS.map(g => g.id);
@@ -44,7 +44,7 @@ export const createLichtapHangtuanSchema = z.object({
     .number({ invalid_type_error: 'Số ngày/tuần phải là số' })
     .int('Phải là số nguyên')
     .min(1, 'Tối thiểu 1 ngày/tuần')
-    .max(7, 'Tối đa 7 ngày/tuần'),
+    .max(6, 'Tối đa 6 ngày/tuần'),
 });
 
 export type CreateLichtapHangtuanForm = z.infer<typeof createLichtapHangtuanSchema>;

@@ -10,18 +10,20 @@ import {
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { DieuchinhLichtapForm, RATING_VALUES, updateLichtapHangtuanSchema } from '../schemas/updateLichtapHangtuanSchema';
+import { updateWeeklySchedule } from '../api/updateLichtap';
 
 const RATING_LABELS: Record<number, string> = {
   1: 'Dễ (+1)',
   [-1]: 'Khó (-1)',
 };
 
-export default function FormDieuchinhLichtap({
-  onSubmit,
-}: {
-  /** Optional: truyền hàm submit riêng để gọi API; nếu không truyền, form chỉ hiện thông báo */
-  onSubmit?: (data: DieuchinhLichtapForm) => Promise<void> | void;
-}) {
+const redirectToHomePage = () => {
+  if (typeof window !== 'undefined') {
+    window.location.href = '/';
+  }
+}
+
+export default function FormDieuchinhLichtap() {
   const [serverMessage, setServerMessage] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
 
@@ -31,14 +33,19 @@ export default function FormDieuchinhLichtap({
     mode: 'onChange',
   });
 
-  const handleSubmit = async (data: DieuchinhLichtapForm) => {
+  const onSubmit = async (data: DieuchinhLichtapForm) => {
     setServerMessage(undefined);
     setSubmitting(true);
     try {
-      if (onSubmit) {
-        await onSubmit(data);
+      const result = await updateWeeklySchedule(data);
+      if (result?.statusCode !== 200) {
+        setServerMessage(result?.message || 'Có lỗi xảy ra, vui lòng thử lại.');
       }
-      setServerMessage('Đã gửi đánh giá điều chỉnh lịch tập.');
+      else{
+        setServerMessage(result?.message || 'Cập nhật lịch tập thành công.');
+        redirectToHomePage()
+      }
+      setSubmitting(false);
     } catch (e: any) {
       setServerMessage(e?.message || 'Có lỗi xảy ra, vui lòng thử lại.');
     }
@@ -49,7 +56,7 @@ export default function FormDieuchinhLichtap({
     <Form {...form}>
       <form
         autoComplete="off"
-        onSubmit={form.handleSubmit(handleSubmit)}
+        onSubmit={form.handleSubmit(onSubmit)}
         className="space-y-6 bg-white dark:bg-muted p-6 rounded-lg justify-shadow"
       >
         <h2 className="px-2 underline text-primary font-bold text-lg">
@@ -96,7 +103,12 @@ export default function FormDieuchinhLichtap({
           {(submitting || form.formState.isSubmitting) && (
             <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full inline-block mr-2"></span>
           )}
-          Gửi
+          Điều chỉnh lịch tập
+        </Button>
+        <Button asChild={true} variant={'secondary'} className="w-full" onClick={redirectToHomePage}>
+          <label>
+            Quay lại
+          </label>
         </Button>
       </form>
     </Form>

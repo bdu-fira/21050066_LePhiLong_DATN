@@ -54,7 +54,7 @@ export class ExerciseController {
   @UseGuards(AuthGuard([0, 1]))
   @Patch('updateCriteria')
   async updateCriteria(@Body() payload: any, @Req() req: any, @Res() res: Response) {
-    const result = await this.exerciseService.updateCriteria({ ...payload });
+    const result = await this.exerciseService.updateCriteria({ ...payload, userId: req.userID });
     res.status(result.statusCode).json(result);
   }
 
@@ -65,5 +65,12 @@ export class ExerciseController {
     const result = await this.exerciseService.updateModel({ ...payload, file });
     res.status(result.statusCode).json(result);
   }
-  
+
+  @UseGuards(AuthGuard([0, 1]))
+  @Post('getExercise')
+  async getExercise(@Body() payload: any, @Req() req: any, @Res() res: Response) {
+    const result = await this.exerciseService.getExercise({ ...payload, userId: req.userID, userRole: req.userRole });
+    res.status(result.statusCode).json(result);
+  }
+
 }

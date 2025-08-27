@@ -11,18 +11,6 @@ export function checkShoulderRule(angles?: JointAngles): boolean {
   return angles.rightShoulder > 65;
 }
 
-function speak(msg: string) {
-  if (typeof window !== "undefined" && window.speechSynthesis) {
-    window.speechSynthesis.cancel();
-    const utter = new window.SpeechSynthesisUtterance(msg);
-    const voices = window.speechSynthesis.getVoices();
-    const viVoice = voices.find(v => v.lang.startsWith("vi"));
-    if (viVoice) utter.voice = viVoice;
-    utter.lang = "vi-VN";
-    window.speechSynthesis.speak(utter);
-  }
-}
-
 export default function JointFeedback({ angles }: { angles?: JointAngles }) {
   const isWarning = checkShoulderRule(angles);
   const wasWarning = useRef(false);

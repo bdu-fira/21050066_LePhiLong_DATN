@@ -9,6 +9,8 @@ import { ExerciseLevel } from 'src/entities/exerciselevel.entity';
 import { EvaluationCriteria } from 'src/entities/evaluationcriteria.entity';
 import { Position } from 'src/entities/position.entity';
 import { Joint } from 'src/entities/joint.entity';
+import { Schedule } from 'src/entities/schedule.entity';
+import { ScheduleDetail } from 'src/entities/scheduledetail.entity';
 
 @Injectable()
 export class ExerciseService {
@@ -27,6 +29,12 @@ export class ExerciseService {
 
     @InjectRepository(Position)
     private _positionRepository: Repository<Position>,
+
+    @InjectRepository(Schedule)
+    private _scheduleRepository: Repository<Schedule>,
+
+    @InjectRepository(ScheduleDetail)
+    private _scheduleDetailRepository: Repository<ScheduleDetail>,
 
     @InjectRepository(Joint)
     private _joint: Repository<Joint>,
@@ -454,4 +462,65 @@ export class ExerciseService {
     }
   }  
 
+  async getExercise(payload: any) {
+    try {
+      const date = String(payload?.date ?? '').trim();
+      const userId = Number(payload?.userId);
+      if (!date) return { isSuccess: false, statusCode: 400, message: 'Thiếu ngày.' };
+  
+      const schedule = await this._scheduleRepository.findOne({
+        where: { traineeID: userId },
+        relations: ['details', 'details.exercise'],
+      })!;
+  
+  
+      const details = (schedule!.details || []).filter((x: any) => String(x.date) === date);
+  
+      const data: any[] = [];
+      for (const d of details) {
+        const ex = await this._exerciseRepository.findOne({
+          where: { id: d.exerciseID },
+          relations: ['positions', 'positions.evaluationCriteria', 'positions.evaluationCriteria.joints'],
+        });
+        if (!ex) return { isSuccess: false, statusCode: 404, message: 'Bài tập không tồn tại!' };
+  
+        const level = await this._exerciseLevelRepository.findOne({ where: { exerciseID: ex.id, level: schedule!.level } });
+  
+        const dir = path.join(process.cwd(), 'uploads', 'exercise', String(ex.id));
+        const modelPath = path.join(dir, 'model.weight');
+        const fbxPath = path.join(dir, 'instruction.fbx');
+  
+        const okModel = fs.existsSync(modelPath);
+        const okFbx = fs.existsSync(fbxPath);
+        const criteria = (ex.positions || []).flatMap((p: any) => p.evaluationCriteria || []);
+  
+        // if (!okModel || !okFbx || !criteria.length) {
+        //   return { isSuccess: false, statusCode: 500, message: 'Xảy ra lỗi khi nạp dữ liệu, vui lòng tải lại trang.' };
+        // }
+  
+        data.push({
+          id: ex.id,
+          name: ex.name,
+          set: level?.set ?? null,
+          rep: level?.rep ?? null,
+          evaluationCriteria: criteria.map((c: any) => ({
+            id: c.id,
+            operator: c.operator,
+            angle: c.angle,
+            errorMessage: c.errorMessage,
+            joints: (c.joints || []).map((j: any) => j.id),
+          })),
+          model: {
+            weight: path.relative(process.cwd(), modelPath).replace(/\\/g, '/'),
+            instruction: path.relative(process.cwd(), fbxPath).replace(/\\/g, '/'),
+          },
+        });
+      }
+  
+      return { isSuccess: true, statusCode: 200, message: 'Thành công', data };
+    } catch (e) {
+      return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
+    }
+  }
+  
 }

@@ -81,15 +81,15 @@ export const MUSCLE_GROUPS = [
 
 export const GOALS = [
   {
-    id: 0,
+    id: 1,
     name: 'Giữ dáng',
   },
   {
-    id: 1,
+    id: 2,
     name: 'Giảm mỡ',
   },
   {
-    id: 2,
+    id: 3,
     name: 'Tăng cơ'
   }
 ]

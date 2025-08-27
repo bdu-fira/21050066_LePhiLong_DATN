@@ -22,8 +22,13 @@ import { createWeeklySchedule } from '@/features/quan-ly-lich-tap/tao-lich-tap-h
 import { MUSCLE_GROUPS } from '@/constants';
 import { GOALS } from '@/constants';
 
+const redirectToHomePage = () => {
+  if (typeof window !== 'undefined') {
+    window.location.href = '/';
+  }
+}
+
 export default function FormTaolichtapHangtuan() {
-  const router = useRouter();
   const [serverStatusCode, setServerStatusCode] = useState<number>();
   const [serverMessage, setServerMessage] = useState<string>();
 
@@ -73,9 +78,9 @@ export default function FormTaolichtapHangtuan() {
       return;
     }
 
-    if (result?.statusCode === 200) {
+    if (result?.statusCode === 201) {
       setServerMessage(result.message || 'Tạo lịch tập thành công.');
-      router.push('/');
+      redirectToHomePage();
       return;
     }
 

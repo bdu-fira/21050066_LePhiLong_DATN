@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { AuthGuard } from 'src/auth/auth.guard';
 import { ScheduleService } from './schedule.service';
@@ -19,8 +19,31 @@ export class ScheduleController {
 
   @UseGuards(AuthGuard([0, 1]))
   @Post('create')
-  async create(@Req() req: any, @Res() res: Response, @Body() payload: any) {
+  async createWeeklySchedule(@Req() req: any, @Res() res: Response, @Body() payload: any) {
+    console.log(payload);
     const result = await this.scheduleService.createWeeklySchedule({ userId: req.userID, body: payload });
     res.status(result.statusCode).json(result);
   }
+
+  @UseGuards(AuthGuard([0, 1]))
+  @Patch('update')
+  async updateWeeklySchedule(@Req() req: any, @Res() res: Response, @Body() payload: any) {
+    const result = await this.scheduleService.updateWeeklySchedule({
+      ...payload,
+      userId: req.userID,
+      userRole: req.userRole,
+    });
+    res.status(result.statusCode).json(result);
+  }
+
+  @UseGuards(AuthGuard([0, 1]))
+  @Delete('delete')
+  async deleteSchedule(@Req() req: any, @Res() res: Response) {
+    const result = await this.scheduleService.deleteSchedule({
+      userId: req.userID,
+      userRole: req.userRole,
+    });
+    res.status(result.statusCode).json(result);
+  }
+
 }

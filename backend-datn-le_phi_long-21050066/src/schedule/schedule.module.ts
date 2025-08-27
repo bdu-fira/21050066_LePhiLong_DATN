@@ -9,10 +9,11 @@ import { Trainee } from 'src/entities/trainee.entity';
 import { ScheduleService } from './schedule.service';
 import { ScheduleController } from './schedule.controller';
 import { UserModule } from 'src/user/user.module';
+import { ExerciseLevel } from 'src/entities/exerciselevel.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Schedule, ScheduleDetail, Exercise, Muscle, EvaluationCriteria, Trainee]),
+    TypeOrmModule.forFeature([Schedule, ScheduleDetail, Exercise, Muscle, EvaluationCriteria, Trainee, ExerciseLevel]),
     forwardRef(() => UserModule), 
   ],
   providers: [ScheduleService],

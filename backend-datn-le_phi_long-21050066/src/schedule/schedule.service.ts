@@ -5,379 +5,307 @@ import { Schedule } from 'src/entities/schedule.entity';
 import { ScheduleDetail } from 'src/entities/scheduledetail.entity';
 import { Exercise } from 'src/entities/exercise.entity';
 import { Muscle } from 'src/entities/muscle.entity';
-import { EvaluationCriteria } from 'src/entities/evaluationcriteria.entity';
+import { ExerciseLevel } from 'src/entities/exerciselevel.entity';
 import { Trainee } from 'src/entities/trainee.entity';
+
 
 @Injectable()
 export class ScheduleService {
   constructor(
-    @InjectRepository(Schedule) private readonly scheduleRepo: Repository<Schedule>,
-    @InjectRepository(ScheduleDetail) private readonly scheduleDetailRepo: Repository<ScheduleDetail>,
-    @InjectRepository(Exercise) private readonly exerciseRepo: Repository<Exercise>,
-    @InjectRepository(Muscle) private readonly muscleRepo: Repository<Muscle>,
-    @InjectRepository(EvaluationCriteria) private readonly evalRepo: Repository<EvaluationCriteria>,
-    @InjectRepository(Trainee) private readonly traineeRepo: Repository<Trainee>,
+    @InjectRepository(Schedule) private scheduleRepo: Repository<Schedule>,
+    @InjectRepository(ScheduleDetail) private scheduleDetailRepo: Repository<ScheduleDetail>,
+    @InjectRepository(Exercise) private exerciseRepo: Repository<Exercise>,
+    @InjectRepository(ExerciseLevel) private levelRepo: Repository<ExerciseLevel>,
+    @InjectRepository(Muscle) private muscleRepo: Repository<Muscle>,
+    @InjectRepository(Trainee) private traineeRepo: Repository<Trainee>,
+
   ) {}
 
   async getSchedule(payload: any) {
     try {
-      const traineeID = Number(payload?.userId);
-
-      const schedule = await this.scheduleRepo.findOne({
-        where: { traineeID, isTraining: 1 },
-      });
-      if (!schedule) {
-        return { statusCode: 200, message: 'Không có lịch tập đang hoạt động.', data: { weeks: [] } };
+      const traineeID = Number(payload?.userId) || 0
+      const schedule = await this.scheduleRepo.findOne({ where: { traineeID, isTraining: 1 } })
+      if (!schedule) return { statusCode: 200, message: 'Không có lịch tập đang hoạt động.', data: { weeks: [] } }
+  
+      const details = await this.scheduleDetailRepo.find({ where: { scheduleID: schedule.id }, relations: ['exercise'], order: { date: 'ASC' } })
+      if (!details.length) return { statusCode: 200, message: 'Chưa có chi tiết lịch cho lịch tập hiện tại.', data: { weeks: [] } }
+  
+      const pad = (n: any) => String(n).padStart(2, '0')
+      const iso = (d: any) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+      const fmt = (d: any) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`
+      const parse = (s: any) => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d) }
+      const monday = (d: any) => { const x = new Date(d); const w = (x.getDay() + 6) % 7; x.setDate(x.getDate() - w); x.setHours(0,0,0,0); return x }
+      const sunday = (m: any) => { const x = new Date(m); x.setDate(x.getDate() + 6); x.setHours(0,0,0,0); return x }
+  
+      const dayMap: any = {}
+      for (const x of details) {
+        const k = x.date
+        const s = Number(x.set) || 0
+        const r = Number(x.rep) || 0
+        const c = Number(x.exercise?.calo) || 0
+        if (!dayMap[k]) dayMap[k] = { exercises: 0, calories: 0 }
+        dayMap[k].exercises += 1
+        dayMap[k].calories += c * s * r
       }
-
-      // lấy toàn bộ detail + exercise liên quan
-      const details = await this.scheduleDetailRepo.find({
-        where: { scheduleID: schedule.id },
-        relations: ['exercise'],
-        order: { date: 'ASC' },
-      });
-
-      if (!details.length) {
-        return { statusCode: 200, message: 'Chưa có chi tiết lịch cho lịch tập hiện tại.', data: { weeks: [] } };
-      }
-
-      // group theo ngày
-      const dayMap: Record<string, { exercises: number; calories: number }> = {};
-      for (const d of details) {
-        if (!dayMap[d.date]) dayMap[d.date] = { exercises: 0, calories: 0 };
-        dayMap[d.date].exercises++;
-        dayMap[d.date].calories += d.exercise?.calo || 0;
-      }
-
-      const days = Object.keys(dayMap).map(date => ({
-        date,
-        exercises: dayMap[date].exercises,
-        calories: dayMap[date].calories,
-      })).sort((a, b) => a.date.localeCompare(b.date));
-
-      // gom thành tuần
-      const parseISO = (s: string) => {
-        const [y, m, d] = s.split('-').map(Number);
-        return new Date(y, m - 1, d);
-      };
-      const fmtVN = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const toMonday = (d: Date) => {
-        const day = (d.getDay() + 6) % 7;
-        const monday = new Date(d);
-        monday.setDate(d.getDate() - day);
-        monday.setHours(0, 0, 0, 0);
-        return monday;
-      };
-      const toSunday = (monday: Date) => {
-        const sunday = new Date(monday);
-        sunday.setDate(monday.getDate() + 6);
-        sunday.setHours(0, 0, 0, 0);
-        return sunday;
-      };
-
-      const firstDate = parseISO(days[0].date);
-      const lastDate = parseISO(days[days.length - 1].date);
-      let curMonday = toMonday(firstDate);
-      const finalSunday = toSunday(toMonday(lastDate));
-
-      const weeks: any[] = [];
-      while (curMonday <= finalSunday) {
-        const sunday = toSunday(curMonday);
-        const bucket: any[] = [];
+  
+      const dates = Object.keys(dayMap).sort()
+      const start = monday(parse(dates[0]))
+      const end = sunday(monday(parse(dates[dates.length - 1])))
+  
+      const weeks: any[] = []
+      for (let w = 0, cur = new Date(start); cur <= end; w++, cur.setDate(cur.getDate() + 7)) {
+        const sun = sunday(cur)
+        const days: any[] = []
         for (let i = 0; i < 7; i++) {
-          const d = new Date(curMonday);
-          d.setDate(curMonday.getDate() + i);
-          const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-          const found = dayMap[iso] || { exercises: 0, calories: 0 };
-          bucket.push({ date: iso, exercises: found.exercises, calories: found.calories });
+          const d = new Date(cur); d.setDate(cur.getDate() + i)
+          const k = iso(d)
+          const v = dayMap[k] || { exercises: 0, calories: 0 }
+          days.push({ date: k, exercises: v.exercises, calories: v.calories })
         }
-        weeks.push({
-          weekLabel: `Tuần ${weeks.length + 1} (${fmtVN(curMonday)}–${fmtVN(sunday)})`,
-          startDate: `${curMonday.getFullYear()}-${String(curMonday.getMonth() + 1).padStart(2, '0')}-${String(curMonday.getDate()).padStart(2, '0')}`,
-          endDate: `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`,
-          days: bucket,
-        });
-        curMonday = new Date(sunday);
-        curMonday.setDate(sunday.getDate() + 1);
+        weeks.push({ weekLabel: `Tuần ${w + 1} (${fmt(cur)}–${fmt(sun)})`, startDate: iso(cur), endDate: iso(sun), days })
       }
-
-      return { statusCode: 200, message: 'OK', data: { weeks } };
+  
+      return { statusCode: 200, message: 'OK', data: { weeks } }
     } catch (e) {
-      return { statusCode: 500, message: 'Có lỗi khi lấy lịch tập.', data: { weeks: [] } };
+      return { statusCode: 500, message: 'Có lỗi khi lấy lịch tập.', data: { weeks: [] } }
+    }
+  }  
+
+  async createWeeklySchedule(input: any): Promise<any> {
+    try {
+      const s = await this.generateSchedule(input)
+      const header = await this.scheduleRepo.save({
+        traineeID: input.userId,
+        level: s.meta.goal,
+        isTraining: 1,
+      } as any)
+  
+      const details = s.week.flatMap((d: any) =>
+        d.exercises.map((e: any) => ({
+          scheduleID: header.id,
+          exerciseID: e.exerciseId,
+          date: d.date,
+          set: e.sets,
+          rep: e.reps,
+        } as any))
+      )
+  
+      if (details.length) await this.scheduleDetailRepo.save(details)
+  
+      return { statusCode: 201, message: 'Tạo lịch tập thành công!', data: { scheduleId: header.id, ...s } }
+    } catch (e) {
+      return { statusCode: 500, message: 'Có lỗi xảy ra khi tạo lịch.', error: e.message }
     }
   }
+  
 
-  async createWeeklySchedule(payload: any) {
-    const userId = Number(payload?.userId);
-    const body = payload?.body || {};
+  async generateSchedule(input: any): Promise<any> {
     try {
-      const trainee = await this.traineeRepo.findOne({ where: { id: userId } });
-      if (!trainee) return { statusCode: 422, message: 'Không tìm thấy học viên' };
-
-      // tắt lịch đang active (nếu có)
-      const active = await this.scheduleRepo.findOne({ where: { traineeID: trainee.id, isTraining: 1 } });
-      if (active) { active.isTraining = 0; await this.scheduleRepo.save(active); }
-
-      // nạp dữ liệu cần thiết (đơn giản bằng repo.find)
-      const exercises = await this.exerciseRepo.find();
-      const muscles = await this.muscleRepo.find();
-      const rules = await this.evalRepo.find();
-
-      // map bài -> nhóm cơ & độ khó
-      const exGroup: Record<number, number> = {};
-      for (const m of muscles) exGroup[(m as any).exerciseID] = (m as any).id;
-
-      const exDifficulty: Record<number, number> = {};
-      for (const r of rules) {
-        const exId = (r as any).exerciseID;
-        if (exId != null) exDifficulty[exId] = (r as any).difficulty ?? Number(body.goal);
+      const p = input?.body || {}
+      const height = Number(p.height) || 0
+      const weight = Number(p.weight) || 0
+      const goal = Number(p.goal) || 1
+      const muscles = Array.isArray(p.muscles) ? p.muscles.map((x: any)=>Number(x)) : []
+      const daysPerWeek = Number(p.daysPerWeek) || 3
+  
+      const h = height > 0 ? height : 1
+      const bmi = weight / Math.pow(h / 100, 2)
+      const band = bmi < 18.5 ? 'under' : bmi <= 24.9 ? 'normal' : bmi <= 29.9 ? 'over' : bmi <= 34.9 ? 'obeseI' : 'obeseII'
+  
+      const rules: any = {
+        under: { 1:{ds:0,rp:0}, 2:{ds:0,rp:0}, 3:{ds:0,rp:0} },
+        normal:{ 1:{ds:0,rp:5}, 2:{ds:0,rp:0}, 3:{ds:1,rp:5} },
+        over:  { 1:{ds:0,rp:10},2:{ds:0,rp:0}, 3:{ds:1,rp:0} },
+        obeseI:{ 1:{ds:-1,rp:15},2:{ds:-1,rp:0},3:{ds:0,rp:0} },
+        obeseII:{1:{ds:-1,rp:20},2:{ds:-1,rp:0},3:{ds:-1,rp:0} },
       }
-
-      // pool bài (lọc theo muscle_groups FE gửi nếu có)
-      const pool = exercises
-        .map(e => ({
-          id: e.id,
-          calories: (e as any).calo || 0,
-          muscleGroupId: exGroup[e.id] || 0,
-          difficulty: exDifficulty[e.id] ?? Number(body.goal),
-        }))
-        .filter(e => !Array.isArray(body.muscles) || body.muscles.length === 0 || body.muscles.includes(e.muscleGroupId));
-
-      // tính tuổi
-      const dob = new Date(body.dateOfBirth);
-      const now = new Date();
-      let age = now.getFullYear() - dob.getFullYear();
-      const mm = now.getMonth() - dob.getMonth();
-      if (mm < 0 || (mm === 0 && now.getDate() < dob.getDate())) age--;
-
-      // sinh kế hoạch 7 ngày theo luật
-      const plan = this.generateSchedule({
-        age,
-        gender: body.gender,
-        height: Number(body.height),
-        weight: Number(body.weight),
-        goal: Number(body.goal),        // 0=giữ dáng, 1=giảm mỡ, 2=tăng cơ
-        daysPerWeek: Number(body.daysPerWeek),
-        muscleGroups: Array.isArray(body.muscles) ? body.muscles : [],
-        exercises: pool,
-        rules,
-      });
-
-      // if (!plan.length || plan.every((d: any) => !d.exerciseIDs.length)) {
-      //   return { statusCode: 422, message: 'Không tạo được lịch, dữ liệu bài tập không phù hợp.' };
-      // }
-
-      // tạo schedule trước (level = goal, không createdAt)
-      const s = await this.scheduleRepo.save({
-        traineeID: trainee.id,
-        isTraining: 1,
-        level: Number(body.goal),
-      } as any) as Schedule;
-
-      const details: any[] = [];
-      for (const day of plan) {
-        for (const exId of day.exerciseIDs) {
-          details.push({ scheduleID: s.id, exerciseID: exId, date: day.date });
+      const rule = rules[band][goal] || { ds:0, rp:0 }
+      const duration = goal === 2 ? 4 : goal === 1 ? 5 : 6
+  
+      const start = this.nextMonday()
+      const flags = this.distribute(daysPerWeek)
+  
+      const exs = await this.exerciseRepo.find()
+      const musRows: any[] = await this.muscleRepo.find()
+      const lvlRows: any[] = await this.levelRepo.find({ where: { level: goal as any } })
+  
+      const muscleMap = new Map<string, number[]>()
+      for (const m of musRows) {
+        const k = String(m.exerciseID)
+        const a = muscleMap.get(k) || []
+        a.push(Number(m.id))
+        muscleMap.set(k, a)
+      }
+  
+      const baseMap = new Map<number, { set: number; rep: number }>()
+      for (const l of lvlRows) baseMap.set(Number(l.exerciseID), { set: Number(l.set) || 1, rep: Number(l.rep) || 1 })
+  
+      const prefer = (exId: any) => (muscleMap.get(String(exId)) || []).some((g: any) => muscles.includes(g))
+  
+      const pick = (want: number) => {
+        const pri = exs.filter((x: any) => prefer(x.id))
+        const rest = exs.filter((x: any) => !prefer(x.id))
+        const arr = [...pri, ...rest]
+        const out: any[] = []
+        const seen = new Set<string>()
+        for (const e of arr) { if (out.length >= want) break; const k = String(e.id); if (seen.has(k)) continue; seen.add(k); out.push(e) }
+        return out.slice(0, 10)
+      }
+  
+      const week: any[] = []
+      for (let w = 0; w < duration; w++) {
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + w * 7 + i)
+          const dateStr = this.localDate(date)
+          if (!flags[i]) { week.push({ date: dateStr, weekday: this.wd(i), exercises: [] }); continue }
+          const chosen = pick(8)
+          const exercises = chosen.map((ex: any) => {
+            const base = baseMap.get(Number(ex.id)) || { set: 1, rep: 1 }
+            const sets = this.clamp(Number(base.set) + Number(rule.ds || 0), 1, 100)
+            const reps = this.clamp(Math.round(Number(base.rep) * (1 + Number(rule.rp || 0) / 100)), 1, 100)
+            return { exerciseId: ex.id, name: ex.name, sets, reps }
+          })
+          week.push({ date: dateStr, weekday: this.wd(i), exercises })
         }
       }
-      
-      if (!details.length) {
-        await this.scheduleRepo.delete(s.id);
-        return { statusCode: 422, message: 'Không có buổi tập nào được tạo.' };
-      }
-      
-      await (this.scheduleDetailRepo as any).save(details);
+  
+      return { meta: { bmi: Number((bmi || 0).toFixed(2)), band, goal, daysPerWeek, weeks: duration }, week }
+    } catch (e: any) {
+      return { meta: null, week: [], error: e?.message || String(e) }
+    }
+  }  
+  
+  clamp(n: any, a: any, b: any) { return Math.max(a, Math.min(b, n)) }
 
-      // trả về data tối thiểu (scheduleID + tóm tắt theo ngày)
-      const data = {
-        scheduleID: s.id,
-        level: s.level,
-        days: plan.map((d: any) => ({
-          date: d.date,
-          exercises: d.exerciseIDs,
-          calories: d.calories,
-        })),
+  wd(i: any) { return ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i] }
+
+  nextMonday(): Date {
+    const now = new Date()
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const day = d.getDay()
+    const diff = (day === 1 ? 0 : (8 - (day || 7)) % 7)
+    d.setDate(d.getDate() + diff)
+    return d
+  }
+
+  distribute(n: any): boolean[] {
+    const arr = [false,false,false,false,false,false]
+    if (n <= 0) return arr
+    const idx: any = {
+      1:[0],
+      2:[0,3],
+      3:[0,2,4],
+      4:[0,1,3,5],
+      5:[0,1,2,3,4],
+      6:[0,1,2,3,4,5],
+    }[n > 6 ? 6 : n]
+    idx.forEach((i: any)=>arr[i]=true)
+    return arr
+  }
+
+  localDate(d: Date) {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${dd}`
+  }  
+
+
+  async updateWeeklySchedule(payload: any) {
+    try {
+      const traineeID = Number(payload?.userId) || 0;
+      const rating = Number(payload?.rating);
+  
+      if (![1, -1].includes(rating)) {
+        return { isSuccess: false, statusCode: 400, message: 'Phải chọn tăng (+1) hoặc giảm (-1) độ khó.' };
+      }
+  
+      const schedule = await this.scheduleRepo.findOne({ where: { traineeID, isTraining: 1 } });
+      if (!schedule) {
+        return { isSuccess: false, statusCode: 404, message: 'Không tìm thấy lịch tập đang hoạt động.' };
+      }
+  
+      // validate ngưỡng level
+      if (schedule.level + rating < 1 || schedule.level + rating > 3) {
+        return { isSuccess: false, statusCode: 409, message: 'Đã đạt ngưỡng giới hạn độ khó.' };
+      }
+  
+      // lấy trainee để tính BMI
+      const trainee = await this.traineeRepo.findOne({ where: { id: traineeID } });
+      if (!trainee) {
+        return { isSuccess: false, statusCode: 404, message: 'Không tìm thấy thông tin người tập.' };
+      }
+  
+      const h = trainee.height > 0 ? trainee.height : 1;
+      const bmi = trainee.weight / Math.pow(h / 100, 2);
+      const band =
+        bmi < 18.5 ? 'under'
+        : bmi <= 24.9 ? 'normal'
+        : bmi <= 29.9 ? 'over'
+        : bmi <= 34.9 ? 'obeseI'
+        : 'obeseII';
+  
+      // nhóm luật 1
+      const rules: any = {
+        under: { 1:{ds:0,rp:0}, 2:{ds:0,rp:0}, 3:{ds:0,rp:0} },
+        normal:{ 1:{ds:0,rp:5}, 2:{ds:0,rp:0}, 3:{ds:1,rp:5} },
+        over:  { 1:{ds:0,rp:10},2:{ds:0,rp:0}, 3:{ds:1,rp:0} },
+        obeseI:{ 1:{ds:-1,rp:15},2:{ds:-1,rp:0},3:{ds:0,rp:0} },
+        obeseII:{1:{ds:-1,rp:20},2:{ds:-1,rp:0},3:{ds:-1,rp:0} },
       };
-
-      return { statusCode: 200, message: 'Tạo lịch tập thành công.', data };
-    } catch(e) {
-      console.log(e)
-      return { statusCode: 500, message: 'Có lỗi khi tạo lịch tập.' };
+  
+      const baseRule = rules[band][schedule.level] || { ds:0, rp:0 };
+  
+      // tăng/giảm rule theo rating
+      const adjRule = {
+        ds: baseRule.ds * rating,
+        rp: baseRule.rp * rating,
+      };
+  
+      const details = await this.scheduleDetailRepo.find({
+        where: { scheduleID: schedule.id, isTrained: 0 } as any,
+      });
+  
+      if (!details.length) {
+        return { isSuccess: true, statusCode: 200, message: 'Không còn bài tập nào để điều chỉnh.' };
+      }
+  
+      for (const d of details) {
+        d.set = this.clamp(d.set + adjRule.ds, 1, 100);
+        d.rep = this.clamp(Math.round(d.rep * (1 + adjRule.rp / 100)), 1, 100);
+      }
+  
+      schedule.level += rating;
+  
+      await this.scheduleRepo.save(schedule);
+      await this.scheduleDetailRepo.save(details);
+  
+      return {
+        isSuccess: true,
+        statusCode: 200,
+        message: 'Điều chỉnh lịch tập thành công.',
+        data: { scheduleId: schedule.id, adjusted: details.length, newLevel: schedule.level },
+      };
+    } catch (e) {
+      return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
     }
   }
-
-  // hệ “chuyên gia” đơn giản dựa trên luật trong EvaluationCriteria
-  private generateSchedule(input: any) {
-    const slotsPerDay = input.goal === 0 ? 4 : input.goal === 1 ? 5 : 6;
-    const rules: any[] = Array.isArray(input.rules) ? input.rules : [];
-
-    const sample = (arr: any[]) => arr.slice(0, 10).map(x => x.id);
-    console.log('[ES] bắt đầu', {
-      totalExercises: input.exercises.length,
-      goal: input.goal,
-      daysPerWeek: input.daysPerWeek,
-      age: input.age,
-      height: input.height,
-      weight: input.weight,
-      muscleGroupsChosen: input.muscleGroups,
-      rules: { total: rules.length }
-    });
-
-    let cur = input.exercises;
-
-    if (Array.isArray(input.muscleGroups) && input.muscleGroups.length) {
-      const before = cur.length;
-      cur = cur.filter((e: any) => input.muscleGroups.includes(e.muscleGroupId));
-      console.log('[ES] lọc theo nhóm cơ người dùng', { before, after: cur.length, groups: input.muscleGroups, sample: sample(cur) });
-    } else {
-      console.log('[ES] bỏ qua lọc nhóm cơ (người dùng không chọn)');
-    }
-
-    const hasGoalRule = rules.some(r => (r as any).goal != null);
-    if (hasGoalRule) {
-      const before = cur.length;
-      cur = cur.filter((ex: any) =>
-        rules.some((r: any) =>
-          (r.goal == null || r.goal === input.goal) &&
-          (r.muscleGroupId == null || r.muscleGroupId === ex.muscleGroupId) &&
-          (r.difficulty == null || r.difficulty === ex.difficulty)
-        )
-      );
-      console.log('[ES] lọc theo goal', { before, after: cur.length, goal: input.goal, sample: sample(cur) });
-    } else {
-      console.log('[ES] bỏ qua lọc goal (không có rule goal)');
-    }
-
-    const hasAgeRule = rules.some(r => (r as any).minAge != null || (r as any).maxAge != null);
-    if (hasAgeRule) {
-      const before = cur.length;
-      cur = cur.filter((ex: any) =>
-        rules.some((r: any) =>
-          (r.muscleGroupId == null || r.muscleGroupId === ex.muscleGroupId) &&
-          (r.difficulty == null || r.difficulty === ex.difficulty) &&
-          (r.goal == null || r.goal === input.goal) &&
-          (r.minAge == null || input.age >= r.minAge) &&
-          (r.maxAge == null || input.age <= r.maxAge)
-        )
-      );
-      console.log('[ES] lọc theo tuổi', { before, after: cur.length, age: input.age, sample: sample(cur) });
-    } else {
-      console.log('[ES] bỏ qua lọc tuổi (không có rule min/max age)');
-    }
-
-    const hasHeightRule = rules.some(r => (r as any).minHeight != null || (r as any).maxHeight != null);
-    if (hasHeightRule) {
-      const before = cur.length;
-      cur = cur.filter((ex: any) =>
-        rules.some((r: any) =>
-          (r.muscleGroupId == null || r.muscleGroupId === ex.muscleGroupId) &&
-          (r.difficulty == null || r.difficulty === ex.difficulty) &&
-          (r.goal == null || r.goal === input.goal) &&
-          (r.minHeight == null || input.height >= r.minHeight) &&
-          (r.maxHeight == null || input.height <= r.maxHeight)
-        )
-      );
-      console.log('[ES] lọc theo chiều cao', { before, after: cur.length, height: input.height, sample: sample(cur) });
-    } else {
-      console.log('[ES] bỏ qua lọc chiều cao (không có rule min/max height)');
-    }
-
-    const hasWeightRule = rules.some(r => (r as any).minWeight != null || (r as any).maxWeight != null);
-    if (hasWeightRule) {
-      const before = cur.length;
-      cur = cur.filter((ex: any) =>
-        rules.some((r: any) =>
-          (r.muscleGroupId == null || r.muscleGroupId === ex.muscleGroupId) &&
-          (r.difficulty == null || r.difficulty === ex.difficulty) &&
-          (r.goal == null || r.goal === input.goal) &&
-          (r.minWeight == null || input.weight >= r.minWeight) &&
-          (r.maxWeight == null || input.weight <= r.maxWeight)
-        )
-      );
-      console.log('[ES] lọc theo cân nặng', { before, after: cur.length, weight: input.weight, sample: sample(cur) });
-    } else {
-      console.log('[ES] bỏ qua lọc cân nặng (không có rule min/max weight)');
-    }
-
-    const hasDiffRule = rules.some(r => (r as any).difficulty != null);
-    if (hasDiffRule) {
-      const before = cur.length;
-      cur = cur.filter((ex: any) =>
-        rules.some((r: any) =>
-          (r.difficulty == null || r.difficulty === ex.difficulty) &&
-          (r.muscleGroupId == null || r.muscleGroupId === ex.muscleGroupId) &&
-          (r.goal == null || r.goal === input.goal)
-        )
-      );
-      console.log('[ES] lọc theo độ khó', { before, after: cur.length, sample: sample(cur) });
-    } else {
-      console.log('[ES] bỏ qua lọc độ khó (không có rule difficulty)');
-    }
-
-    const finalBefore = cur.length;
-    const final = cur.filter((ex: any) =>
-      rules.length === 0
-        ? true
-        : rules.some((r: any) =>
-            (r.goal == null || r.goal === input.goal) &&
-            (r.muscleGroupId == null || r.muscleGroupId === ex.muscleGroupId) &&
-            (r.difficulty == null || r.difficulty === ex.difficulty) &&
-            (r.minAge == null || input.age >= r.minAge) &&
-            (r.maxAge == null || input.age <= r.maxAge) &&
-            (r.minHeight == null || input.height >= r.minHeight) &&
-            (r.maxHeight == null || input.height <= r.maxHeight) &&
-            (r.minWeight == null || input.weight >= r.minWeight) &&
-            (r.maxWeight == null || input.weight <= r.maxWeight)
-          )
-    );
-    console.log('[ES] sau tất cả điều kiện', { before: finalBefore, after: final.length, sample: sample(final) });
-
-    const byGroup: Record<number, any[]> = {};
-    for (const ex of final) {
-      if (!byGroup[ex.muscleGroupId]) byGroup[ex.muscleGroupId] = [];
-      byGroup[ex.muscleGroupId].push(ex);
-    }
-    console.log('[ES] phân bổ theo nhóm cơ', Object.fromEntries(Object.entries(byGroup).map(([k, v]) => [k, v.length])));
-
-    const pickDays: number[] = [];
-    const n = Math.max(1, Math.min(7, Number(input.daysPerWeek) || 3));
-    if (n >= 7) { for (let i = 0; i < 7; i++) pickDays.push(i); }
-    else {
-      const used = new Set<number>();
-      const step = Math.floor(7 / n) || 1;
-      let curIdx = 0;
-      while (pickDays.length < n) {
-        while (used.has(curIdx)) curIdx = (curIdx + 1) % 7;
-        pickDays.push(curIdx); used.add(curIdx); curIdx = (curIdx + step) % 7;
+  
+  async deleteSchedule(payload: any) {
+    try {
+      const traineeID = Number(payload?.userId) || 0;
+  
+      const schedule = await this.scheduleRepo.findOne({ where: { traineeID, isTraining: 1 } });
+      if (!schedule) {
+        return { isSuccess: false, statusCode: 404, message: 'Không tìm thấy lịch tập đang hoạt động.' };
       }
+  
+      schedule.isTraining = 0;
+      await this.scheduleRepo.save(schedule);
+  
+      return { isSuccess: true, statusCode: 200, message: 'Xóa lịch tập thành công.' };
+    } catch (e) {
+      return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
     }
-    console.log('[ES] ngày tập trong tuần', pickDays);
-
-    const groups = input.muscleGroups?.length ? input.muscleGroups : Object.keys(byGroup).map(Number);
-    let gi = 0;
-
-    const today = new Date();
-    const day0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const week: any[] = [];
-
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(day0); d.setDate(day0.getDate() + i);
-      const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-
-      if (!pickDays.includes(i)) { week.push({ date: iso, exerciseIDs: [], calories: 0 }); continue; }
-
-      const ids: number[] = []; let kcal = 0; let tries = 0;
-      while (ids.length < slotsPerDay && tries < 100) {
-        const gid = groups[gi % groups.length]; gi++;
-        const pool = (byGroup[gid] || []).filter(x => !ids.includes(x.id));
-        if (!pool.length) { tries++; continue; }
-        const chosen = pool[Math.floor(Math.random() * pool.length)];
-        ids.push(chosen.id); kcal += chosen.calories || 0;
-      }
-      week.push({ date: iso, exerciseIDs: ids, calories: kcal });
-    }
-
-    console.log('[ES] kế hoạch cuối', week.map(d => ({ date: d.date, count: d.exerciseIDs.length, calories: d.calories })));
-    return week;
-  }
+  }  
 }

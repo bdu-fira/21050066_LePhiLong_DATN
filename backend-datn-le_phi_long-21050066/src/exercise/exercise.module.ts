@@ -9,10 +9,12 @@ import { ExerciseLevel } from 'src/entities/exerciselevel.entity';
 import { EvaluationCriteria } from 'src/entities/evaluationcriteria.entity';
 import { Position } from 'src/entities/position.entity';
 import { Joint } from 'src/entities/joint.entity';
+import { Schedule } from 'src/entities/schedule.entity';
+import { ScheduleDetail } from 'src/entities/scheduledetail.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Exercise, Muscle, ExerciseLevel, EvaluationCriteria, Position, Joint]),
+    TypeOrmModule.forFeature([Exercise, Muscle, ExerciseLevel, EvaluationCriteria, Position, Joint, Schedule, ScheduleDetail]),
     forwardRef(() => UserModule),
   ],
   controllers: [ExerciseController],

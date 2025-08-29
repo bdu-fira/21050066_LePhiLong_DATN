@@ -1,198 +1,212 @@
 "use client";
+import React from "react";
 
-import React, { useEffect, useRef, useState } from "react";
-import FooterPageTapLuyen from "@/features/giam-sat-tap-luyen/tap-luyen/forms/footer";
 import HeaderPageTapLuyen from "@/features/giam-sat-tap-luyen/tap-luyen/forms/header";
-import InputSection, { PoseState } from "@/features/giam-sat-tap-luyen/tap-luyen/forms/inputSection";
+import FooterPageTapLuyen from "@/features/giam-sat-tap-luyen/tap-luyen/forms/footer";
+import InputSection from "@/features/giam-sat-tap-luyen/tap-luyen/forms/inputSection";
 import MonitorSection from "@/features/giam-sat-tap-luyen/tap-luyen/forms/monitorSection";
-import { JointAngles } from "@/features/giam-sat-tap-luyen/tap-luyen/forms/jointFeedBack";
+import PoseViewer3D from "@/features/giam-sat-tap-luyen/tap-luyen/forms/poseViewer3D";
+import RestOverlay from "@/features/giam-sat-tap-luyen/tap-luyen/forms/restOverlay";
+import ErrorOverlay from "@/features/giam-sat-tap-luyen/tap-luyen/forms/errorOverlay";
 
-const FALLBACK_SEQUENCE: PoseState[] = ["standing", "mid_curl", "full_curl", "mid_curl", "standing"];
+import { getExercise } from "../api/getExercise";
+import { getModels } from "../api/getModels";
+import { initPoseExtractor, extractFromVideo, drawPose } from "@/lib/PoseExtractor";
+import PoseCls from "@/lib/PoseClassification";
+import { Pose } from "@/public/mediapipe/pose";
 
-export default function FormRalenhGiamsatTapluyen() {
-  const screen = useRef<HTMLDivElement | null>(null);
-  const stateBufferRef = useRef<PoseState[]>([]);
-  const violationBufferRef = useRef<boolean[]>([]);
+const REST_SECONDS = 1;
 
-  const [repCount, setRepCount] = useState(0);
-  const [errorCount, setErrorCount] = useState(0);
-  const [feedback, setFeedback] = useState<any>("");
-  const [exercises, setExercises] = useState<any[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
+export default function FormRalenhGiamsatTapluyen(props: any) {
+  const screen = React.useRef<HTMLDivElement | null>(null);
 
-  const [expertByExercise, setExpertByExercise] = useState<any>({});
-  const [modelByExercise, setModelByExercise] = useState<any>({});
-  const [fbxByExercise, setFbxByExercise] = useState<any>({});
-  const [sequenceByExercise, setSequenceByExercise] = useState<any>({});
+  const [exercises, setExercises] = React.useState<any[]>([]);
+  const [currentIndex, setCurrentIndex] = React.useState(0);
+  const [current, setCurrent] = React.useState<any>({
+    name: "", set: 0, rep: 0,
+    currentPredictModel: undefined,
+    currentPoseViewerModel: undefined,
+    currentModelJson: undefined,
+    currentModelUrl: undefined,
+  });
 
-  const [isRest, setIsRest] = useState(false);
-  const [restLeft, setRestLeft] = useState(30);
-  const [pendingIndex, setPendingIndex] = useState<any>(null);
+  const [isRest, setIsRest] = React.useState(false);
+  const [restLeft, setRestLeft] = React.useState(REST_SECONDS);
+  const [pendingIndex, setPendingIndex] = React.useState<number | null>(null);
 
-  const getToday = () => {
-    const d = new Date();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${d.getFullYear()}-${m}-${day}`;
-  };
+  const [cameraError, setCameraError] = React.useState<string | null>(null);
 
-  // Gọi API POST /exercise/getExercise (tham khảo findExercise.ts)
-  const fetchExercises = async (date: string) => {
+  const urlBucketRef = React.useRef<string[]>([]);
+  const poseRef = React.useRef<any>(null);
+
+  const [worldLms, setWorldLms] = React.useState<any[] | null>(null);
+
+  const trackUrl = (u: any) => { if (typeof u === "string" && u.startsWith("blob:")) urlBucketRef.current.push(u); };
+  const revokeAll = () => { try { urlBucketRef.current.forEach((u) => { try { URL.revokeObjectURL(u); } catch {} }); } finally { urlBucketRef.current = []; } };
+
+  const checkCamera = React.useCallback(async () => {
     try {
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/exercise/getExercise`;
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ date }),
-      });
-
-      const json = await res.json();
-      if (!json?.isSuccess) return;
-
-      const list = Array.isArray(json.data) ? json.data : [];
-      const expertMap: any = {};
-      const modelMap: any = {};
-      const fbxMap: any = {};
-      const seqMap: any = {};
-
-      list.forEach((e: any) => {
-        expertMap[e.id] = e.evaluationCriteria || [];
-        modelMap[e.id] = e?.model?.weight || "";
-        fbxMap[e.id] = e?.model?.instruction || "";
-        const seq = (e.positions || e.sequence || [])
-          .map((p: any) => p?.name || p?.label)
-          .filter(Boolean);
-        seqMap[e.id] = seq.length ? seq : FALLBACK_SEQUENCE;
-      });
-
-      setExercises(list);
-      setExpertByExercise(expertMap);
-      setModelByExercise(modelMap);
-      setFbxByExercise(fbxMap);
-      setSequenceByExercise(seqMap);
-
-      // Reset state khi load danh sách mới
-      setCurrentIndex(0);
-      setRepCount(0);
-      setErrorCount(0);
-      setFeedback("");
-      stateBufferRef.current = [];
-      violationBufferRef.current = [];
-    } catch {
-      // swallow
+      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+      s.getTracks().forEach((t) => t.stop());
+      setCameraError(null);
+    } catch (e: any) {
+      const m = e?.name === "NotAllowedError" ? "Bạn đã từ chối quyền camera. Hãy cấp quyền và tải lại trang."
+        : e?.name === "NotFoundError" ? "Không tìm thấy thiết bị camera."
+        : "Không truy cập được camera.";
+      setCameraError(m);
     }
-  };
-
-  useEffect(() => {
-    // Mặc định lấy theo ngày hiện tại, định dạng YYYY-MM-DD
-    fetchExercises(getToday());
   }, []);
 
-  const currentExercise = exercises[currentIndex] || null;
-  const currentSequence: PoseState[] = currentExercise
-    ? sequenceByExercise[currentExercise.id] || FALLBACK_SEQUENCE
-    : FALLBACK_SEQUENCE;
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      await checkCamera();
+      await PoseCls.init();
 
-  const handlePrediction = (poseState: PoseState, jointAngles: JointAngles, violated: boolean) => {
-    if (!poseState) return;
+      const res = await getExercise({ date: props?.date });
+      const list = Array.isArray(res?.data) ? res.data : [];
 
-    const lastState = stateBufferRef.current[stateBufferRef.current.length - 1];
-    if (poseState !== lastState) {
-      stateBufferRef.current.push(poseState);
-      violationBufferRef.current.push(violated);
+      const preloaded = await Promise.all(
+        list.map(async (ex: any) => {
+          const out: any = { ...ex };
 
-      if (stateBufferRef.current.length > currentSequence.length) {
-        stateBufferRef.current.shift();
-        violationBufferRef.current.shift();
-      }
+          const modelPath = ex?.model?.model;
+          const weightPath = ex?.model?.weight;
+          const instructionPath = ex?.model?.instruction;
 
-      if (stateBufferRef.current.length === currentSequence.length) {
-        if (stateBufferRef.current.join(",") === currentSequence.join(",") && !violationBufferRef.current.includes(true)) {
-          setRepCount((v) => v + 1);
-          setFeedback("Hoàn thành 1 rep ĐÚNG!");
-        } else {
-          setErrorCount((v) => v + 1);
-          setFeedback("Động tác sai thứ tự hoặc có lỗi khớp.");
-        }
-        stateBufferRef.current = [];
-        violationBufferRef.current = [];
-      }
-    }
+          try {
+            if (modelPath) {
+              const mj: any = await getModels(modelPath);
+              out._modelJson = mj;
+              out._modelUrl = modelPath;
+            }
+          } catch {}
+          try {
+            if (weightPath) {
+              const wb: any = await getModels(weightPath);
+              if (wb instanceof Blob) {
+                out._weightBin = wb;
+                const url = URL.createObjectURL(wb);
+                out._weightUrl = url;
+                trackUrl(url);
+              }
+            }
+          } catch {}
+          try {
+            if (instructionPath) {
+              const ins: any = await getModels(instructionPath);
+              if (ins instanceof Blob) {
+                const url = URL.createObjectURL(ins);
+                out._instructionUrl = url;
+                trackUrl(url);
+              }
+            }
+          } catch {}
+
+          return out;
+        })
+      );
+
+      if (cancelled) return;
+      setExercises(preloaded);
+      if (preloaded.length > 0) await loadData(0, preloaded);
+      else setCurrent({ name: "", set: 0, rep: 0, currentPredictModel: undefined, currentPoseViewerModel: undefined, currentModelJson: undefined, currentModelUrl: undefined });
+    })();
+
+    return () => { cancelled = true; revokeAll(); };
+  }, [props?.date, checkCamera]);
+
+  const loadData = React.useCallback(async (index: number, source?: any[]) => {
+    const list = source || exercises;
+    const ex = list[index];
+    if (!ex) return;
+
+    setCurrent({
+      name: ex?.name || "",
+      set: ex?.set || 0,
+      rep: ex?.rep || 0,
+      currentPredictModel: ex?._weightUrl,
+      currentPoseViewerModel: ex?._instructionUrl,
+      currentModelJson: ex?._modelJson,
+      currentModelUrl: ex?._modelUrl,
+    });
+    setCurrentIndex(index);
+
+    poseRef.current = await initPoseExtractor(); 
+    await PoseCls.load(ex?._modelJson, ex?._weightBin)
+    setWorldLms(null);
+  }, [exercises]);
+
+  // onFrame TỐI GIẢN: chỉ extract -> nếu có landmarks thì lưu state
+  const onFrame = React.useCallback(async (videoEl: HTMLVideoElement) => {
+    if (!poseRef.current || !videoEl || videoEl.readyState < 2) return
+    const r = await extractFromVideo(videoEl, poseRef.current)
+    if (Array.isArray(r?.poseWorldLandmarks)) setWorldLms(r.poseWorldLandmarks)
+    return r
+  }, [poseRef])
+
+  const onDraw = React.useCallback((canvasEl: HTMLCanvasElement, result: any, videoEl: HTMLVideoElement) => {
+    if (!result?.keypoints?.length) return;
+    try { drawPose({ canvas: canvasEl, image: videoEl, keypoints: result.keypoints }); } catch {}
+  }, []);
+
+  const onPrev = () => {
+    if (!exercises.length) return;
+    const next = (currentIndex - 1 + exercises.length) % exercises.length;
+    setPendingIndex(next); setRestLeft(REST_SECONDS); setIsRest(true);
+  };
+  const onNext = () => {
+    if (!exercises.length) return;
+    const next = (currentIndex + 1) % exercises.length;
+    setPendingIndex(next); setRestLeft(REST_SECONDS); setIsRest(true);
   };
 
-  const startRest = (nextIndex: any) => {
-    if (exercises.length === 0) return;
-    if (nextIndex < 0 || nextIndex > exercises.length - 1) return;
-    setPendingIndex(nextIndex);
-    setRestLeft(30);
-    setIsRest(true);
-  };
-
-  useEffect(() => {
+  React.useEffect(() => {
     if (!isRest) return;
     const t = setInterval(() => {
       setRestLeft((s) => {
         if (s <= 1) {
           clearInterval(t);
           setIsRest(false);
-          if (pendingIndex !== null) {
-            setCurrentIndex(pendingIndex);
-            // reset đếm khi qua bài mới
-            setRepCount(0);
-            setErrorCount(0);
-            setFeedback("");
-            stateBufferRef.current = [];
-            violationBufferRef.current = [];
-            setPendingIndex(null);
-          }
+          if (pendingIndex !== null) { loadData(pendingIndex); setPendingIndex(null); }
           return 0;
         }
         return s - 1;
       });
     }, 1000);
     return () => clearInterval(t);
-  }, [isRest, pendingIndex]);
+  }, [isRest, pendingIndex, loadData]);
+
+  const predict = () => {
+    const v = Array.isArray(worldLms) ? worldLms.flatMap((p: any) => [p.x, p.y, p.z]) : []
+    const out = PoseCls.predictFromLandmarks(v)
+    return out
+  }
+
+  React.useEffect(() => {
+    predict()
+  }, [worldLms])
 
   return (
     <div ref={screen} className="bg-black text-white w-screen flex flex-col gap-8 p-10">
-      <HeaderPageTapLuyen screen={screen} />
+      <HeaderPageTapLuyen screen={screen} title={current?.name || exercises[currentIndex]?.name} />
 
       <div className="flex justify-between px-4 flex-1">
-        <InputSection onPrediction={handlePrediction} />
-        <div className="flex flex-col gap-6 items-end">
-          <div className="text-right">
-            <div className="text-xl">{currentExercise?.name || "---"}</div>
-            <div className="opacity-70">
-              Set: {currentExercise?.set ?? "-"} | Rep: {currentExercise?.rep ?? "-"}
-            </div>
-          </div>
-
-          <MonitorSection reps={repCount} errors={errorCount} feedback={feedback} />
-
-          <div className="text-sm opacity-70">
-            <div>Model: {currentExercise ? modelByExercise[currentExercise.id] : ""}</div>
-            <div>3D: {currentExercise ? fbxByExercise[currentExercise.id] : ""}</div>
-            <div>Sequence: {currentSequence.join(" → ")}</div>
+        <div className="w-full">
+          <div className="grid grid-cols-2 gap-4">
+            <InputSection onFrame={onFrame} onDraw={onDraw} />
+            <PoseViewer3D src={current?.currentPoseViewerModel} />
           </div>
         </div>
       </div>
 
-      <FooterPageTapLuyen
-        onPrev={() => startRest(currentIndex - 1)}
-        onNext={() => startRest(currentIndex + 1)}
-        onRest={() => startRest(currentIndex)}
-      />
+      <div className="flex">
+        <MonitorSection reps={0} errors={0} />
+      </div>
 
-      {isRest && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center">
-          <div className="bg-white text-black rounded-xl p-10 w-[420px] text-center space-y-4">
-            <div className="text-2xl font-semibold">Nghỉ ngơi</div>
-            <div className="text-6xl font-bold">{restLeft}s</div>
-            <div className="text-sm opacity-70">Sẽ tự chuyển bài tập</div>
-          </div>
-        </div>
-      )}
+      <FooterPageTapLuyen currentIndex={currentIndex} total={exercises.length} onPrev={onPrev} onNext={onNext} />
+      <RestOverlay open={isRest} seconds={restLeft} />
+      <ErrorOverlay open={!!cameraError} message={cameraError} onReload={() => window.location.reload()} />
     </div>
   );
 }

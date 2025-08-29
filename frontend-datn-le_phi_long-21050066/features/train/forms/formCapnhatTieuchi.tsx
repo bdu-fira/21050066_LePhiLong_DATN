@@ -58,7 +58,7 @@ export default function FormCapnhatTieuchi({ id, positionID, evaluationCriteria 
   };
 
   return (
-    <div className="bg-white w-full max-w-xl space-y-6">
+    <div className="bg-white w-full space-y-6">
       <h2 className="font-bold text-lg text-primary underline">Thiết lập tiêu chí chuyên gia</h2>
 
       <div>

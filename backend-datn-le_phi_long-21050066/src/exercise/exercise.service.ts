@@ -11,6 +11,7 @@ import { Position } from 'src/entities/position.entity';
 import { Joint } from 'src/entities/joint.entity';
 import { Schedule } from 'src/entities/schedule.entity';
 import { ScheduleDetail } from 'src/entities/scheduledetail.entity';
+import e from 'express';
 
 @Injectable()
 export class ExerciseService {
@@ -420,32 +421,57 @@ export class ExerciseService {
   
   async updateModel(payload: any) {
     try {
-      console.log(payload)
       const id = Number(payload?.id);
       if (!id) {
         return { isSuccess: false, statusCode: 400, message: 'Thiếu id!' };
       }
-  
+
       const exercise = await this._exerciseRepository.findOne({ where: { id } });
       if (!exercise) {
         return { isSuccess: false, statusCode: 404, message: 'Bài tập không tồn tại!' };
       }
-  
-      if (payload?.file) {
+
+      // Kiểm tra nếu có file tải lên
+      if (payload?.modelJson || payload?.modelWeights) {
         const dir = path.join(process.cwd(), 'uploads', 'exercise', String(id));
         fs.mkdirSync(dir, { recursive: true });
-        const filePath = path.join(dir, 'model.weights');
-        fs.writeFileSync(filePath, payload.file.buffer);
-        exercise.path = path.relative(process.cwd(), filePath).replace(/\\/g, '/');
-        console.log('Model saved at:', exercise.path);
+
+        // Lưu model.json nếu có
+        if (payload?.modelJson) {
+          const modelJsonPath = path.join(dir, 'model.json');
+          fs.writeFileSync(modelJsonPath, payload.modelJson.buffer); // Lưu model.json
+          exercise.path = path.relative(process.cwd(), modelJsonPath).replace(/\\/g, '/');
+        }
+
+        // Lưu model.weights.bin nếu có
+        if (payload?.modelWeights) {
+          const weightsFilePath = path.join(dir, 'model.weights.bin');
+          fs.writeFileSync(weightsFilePath, payload.modelWeights.buffer); // Lưu model.weights.bin
+        }
       }
-  
+
+      // Cập nhật kết quả độ chính xác nếu có
       if (payload?.accuracy !== undefined) {
         exercise.lastTrainResult = Number(payload.accuracy);
       }
-  
+
+      // Lưu thông tin bài tập
       await this._exerciseRepository.save(exercise);
-  
+
+      const positionNames = Object.entries(JSON.parse(payload.labels)).map(([exerciseID, name]) => ({
+        exerciseID: Number(exerciseID),
+        name: name
+      }))
+
+      for (const pos of positionNames) {
+        const existingPos = new Position()
+        existingPos.id = pos.exerciseID
+        existingPos.exerciseID = id
+        existingPos.name = pos.name as string
+        
+        await this._positionRepository.save(existingPos);
+      }
+
       return {
         isSuccess: true,
         statusCode: 200,
@@ -460,7 +486,7 @@ export class ExerciseService {
       console.log(e);
       return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
     }
-  }  
+  }
 
   async getExercise(payload: any) {
     try {
@@ -487,16 +513,17 @@ export class ExerciseService {
         const level = await this._exerciseLevelRepository.findOne({ where: { exerciseID: ex.id, level: schedule!.level } });
   
         const dir = path.join(process.cwd(), 'uploads', 'exercise', String(ex.id));
-        const modelPath = path.join(dir, 'model.weight');
+        const modelPath = path.join(dir, 'model.json');
+        const weightsPath = path.join(dir, 'model.weights.bin');
         const fbxPath = path.join(dir, 'instruction.fbx');
   
         const okModel = fs.existsSync(modelPath);
         const okFbx = fs.existsSync(fbxPath);
         const criteria = (ex.positions || []).flatMap((p: any) => p.evaluationCriteria || []);
   
-        // if (!okModel || !okFbx || !criteria.length) {
-        //   return { isSuccess: false, statusCode: 500, message: 'Xảy ra lỗi khi nạp dữ liệu, vui lòng tải lại trang.' };
-        // }
+        if (!okModel || !okFbx || !criteria.length) {
+          return { isSuccess: false, statusCode: 500, message: 'Xảy ra lỗi khi nạp dữ liệu, vui lòng tải lại trang.' };
+        }
   
         data.push({
           id: ex.id,
@@ -505,13 +532,15 @@ export class ExerciseService {
           rep: level?.rep ?? null,
           evaluationCriteria: criteria.map((c: any) => ({
             id: c.id,
+            position: c.positionID,
             operator: c.operator,
             angle: c.angle,
             errorMessage: c.errorMessage,
             joints: (c.joints || []).map((j: any) => j.id),
           })),
           model: {
-            weight: path.relative(process.cwd(), modelPath).replace(/\\/g, '/'),
+            model: path.relative(process.cwd(), modelPath).replace(/\\/g, '/'),
+            weight: path.relative(process.cwd(), weightsPath).replace(/\\/g, '/'),
             instruction: path.relative(process.cwd(), fbxPath).replace(/\\/g, '/'),
           },
         });

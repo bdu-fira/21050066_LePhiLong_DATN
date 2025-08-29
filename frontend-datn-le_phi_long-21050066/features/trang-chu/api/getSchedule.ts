@@ -1,10 +1,5 @@
 import { GetScheduleResponse, getScheduleResponseSchema } from "../schemas/getScheduleSchema";
 
-/**
- * Gọi API lịch tập hiện tại.
- * - Dùng credentials: 'include' vì backend đang check session/JWT cookie giống các phần khác.
- * - Parse & validate bằng zod để FE luôn nhận đúng shape dữ liệu.
- */
 export async function getSchedule(): Promise<GetScheduleResponse> {
   const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/schedule/getSchedule`, {
     method: "GET",

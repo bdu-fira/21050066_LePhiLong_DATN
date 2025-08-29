@@ -18,7 +18,6 @@ export default function PageTrain() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-
   useEffect(() => {
     if (!id) { setLoading(false); setError('Thiếu id bài tập.'); return; }
 
@@ -62,7 +61,7 @@ export default function PageTrain() {
       </div>
 
       {/* Cột phải */}
-      <div className="bg-white rounded-none md:rounded-lg p-0 md:p-0 border overflow-hidden">
+      <div className="bg-white rounded-none md:rounded-lg p-0 md:p-0 border">
         <FormHuanluyenMohinh id={exercise.id} positions={exercise.positions} />
       </div>
     </div>

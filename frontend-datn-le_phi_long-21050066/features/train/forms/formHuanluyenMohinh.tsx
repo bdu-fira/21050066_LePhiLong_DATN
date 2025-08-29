@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 import { trainPoseClassifier } from "@/lib/ModelTrainer";
 import { extract, extractFromImages, initPoseExtractor } from "@/lib/PoseExtractor";
 import { trainSchema } from "../schemas/formHuanluyenBaitapSchema";
-import Pose3DViewer from "./PoseViewer";
 import FormCapnhatTieuchi from "./formCapnhatTieuchi";
 import { updateModel } from "../api/updateModel";
 
@@ -18,6 +17,7 @@ export default function FormHuanluyenMohinh(props: any) {
     defaultValues: {
       id: props.id,
       name: props?.exercise?.name || "",
+      labelIDs: [props.positions[0].id, props.positions[1].id, props.positions[2].id],
       imageLabels: [
         { label: props.positions[0].name, images: [] },
         { label: props.positions[1].name, images: [] },
@@ -36,6 +36,7 @@ export default function FormHuanluyenMohinh(props: any) {
 
   const watchedImageLabels: any[] = useWatch({ control: form.control, name: "imageLabels" });
   const watchedAcc = useWatch({ control: form.control, name: "lastTrainResult" });
+  const watchedLabelIDs = useWatch({ control: form.control, name: "labelIDs" });
 
   const [poseExtractor, setPoseExtractor] = useState<any>();
   const [activeLabelIdx, setActiveLabelIdx] = useState(0);
@@ -50,9 +51,9 @@ export default function FormHuanluyenMohinh(props: any) {
   const [trainResultMsg, setTrainResultMsg] = useState<string | null>(null);
   const [training, setTraining] = useState(false);
 
-  // Giữ file weights để gửi backend
-  const [modelFile, setModelFile] = useState<any>(null);
-  const isTrained = !!modelFile; // trạng thái đã huấn luyện trong phiên hiện tại
+  const [modelWeights, setModelWeights] = useState<any>(null);
+  const [modelJson, setModelJson] = useState<any>(null);
+  const isTrained = !!modelJson && !!modelWeights;
 
   // Lưu mô hình (API)
   const [saving, setSaving] = useState(false);
@@ -162,7 +163,6 @@ export default function FormHuanluyenMohinh(props: any) {
     form.setValue(`imageLabels.${labelIdx}.images`, next, { shouldDirty: true, shouldValidate: true });
   }
 
-  // HUẤN LUYỆN: không gọi API
   async function handleTrain() {
     const data = form.getValues();
     setFormStatus("");
@@ -194,11 +194,12 @@ export default function FormHuanluyenMohinh(props: any) {
       const poseData = await extractFromImages(allImages, poseExtractor);
 
       setFormStatus("Đang huấn luyện model...");
-      const { valAcc, weightsFile } = await trainPoseClassifier(poseData);
+      const { valAcc, weightsFile, modelJson } = await trainPoseClassifier(poseData);
 
       // lưu accuracy và trạng thái đã huấn luyện
       form.setValue("lastTrainResult", valAcc, { shouldDirty: true, shouldValidate: true });
-      setModelFile(weightsFile || null);
+      setModelWeights(weightsFile || null);
+      setModelJson(modelJson || null);
 
       if (valAcc < 0.7) {
         setTrainResultMsg(`Độ chính xác thấp: ${(valAcc * 100).toFixed(2)}%. Hãy bổ sung/điều chỉnh dữ liệu.`);
@@ -209,7 +210,8 @@ export default function FormHuanluyenMohinh(props: any) {
     } catch (err: any) {
       setFormStatus("Có lỗi: " + (err?.message || String(err)));
       setTrainResultMsg(null);
-      setModelFile(null);
+      setModelWeights(null);
+      setModelJson(null);
     }
     setTraining(false);
 
@@ -219,7 +221,6 @@ export default function FormHuanluyenMohinh(props: any) {
     }
   }
 
-  // LƯU MÔ HÌNH: chỉ nút này mới gọi API, chặn nếu chưa huấn luyện
   async function handleSave() {
     if (!isTrained) {
       setSaveMsg("Bạn cần huấn luyện mô hình trước khi lưu.");
@@ -232,8 +233,14 @@ export default function FormHuanluyenMohinh(props: any) {
       const res = await updateModel({
         id: props.id,
         accuracy: data.lastTrainResult ?? undefined,
-        modelFile: modelFile || undefined,
+        labels: JSON.stringify(watchedLabelIDs.reduce((acc: any, key: any, index: any) => {
+          acc[key] = watchedImageLabels[index].label;
+          return acc;
+        }, {})),
+        modelJson: modelJson || undefined,
+        modelWeights: modelWeights || undefined,
       });
+
       setSaveMsg(res.statusCode === 200 ? "Lưu mô hình thành công." : (res.message || "Có lỗi khi lưu mô hình."));
     } catch (e: any) {
       setSaveMsg(e?.message || "Có lỗi khi lưu mô hình.");
@@ -242,9 +249,9 @@ export default function FormHuanluyenMohinh(props: any) {
   }
 
   return (
-    <div className="w-full h-full flex flex-row bg-white overflow-hidden">
+    <div className="w-full flex flex-row bg-white">
       {/* CỘT TRÁI: 3 label cố định + Train */}
-      <div className="flex-1 p-4 md:p-6 overflow-auto border-r h-full flex flex-col">
+      <div className="flex-1 p-4 md:p-6 overflow-auto border-r flex flex-col">
         {/* chặn submit mặc định để Enter không gọi gì cả */}
         <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
           <h2 className="text-primary font-bold text-lg underline">Huấn luyện mô hình</h2>
@@ -345,7 +352,7 @@ export default function FormHuanluyenMohinh(props: any) {
               type="button"
               className="w-fit px-4 mt-2 bg-primary text-white py-2 rounded hover:bg-primary/90 disabled:opacity-50"
               onClick={handleSave}
-              disabled={training || saving || !isTrained} // chặn lưu nếu chưa huấn luyện
+              disabled={!isTrained} // chặn lưu nếu chưa huấn luyện
             >
               {saving ? "Đang lưu..." : "Lưu mô hình"}
             </button>
@@ -355,32 +362,6 @@ export default function FormHuanluyenMohinh(props: any) {
         <div className="mt-4 text-destructive">{formStatus}</div>
         {trainResultMsg && <div className="text-green-600 font-semibold mt-2">{trainResultMsg}</div>}
         {saveMsg && <div className="text-primary font-semibold mt-2">{saveMsg}</div>}
-      </div>
-
-      {/* CỘT GIỮA */}
-      <div className="flex flex-col items-center justify-start min-w-[400px] max-w-[430px] w-[22vw] h-full border-x pt-8">
-        <div className="w-full flex items-center justify-center mb-6 min-h-[240px]">
-          {selectedImage ? (
-            <div className="relative w-[400px] max-w-full">
-              <img ref={imgRef} src={selectedImage.url} alt={selectedImage.label} className="w-full block rounded-lg bg-gray-200" />
-              <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
-            </div>
-          ) : (
-            <div className="w-full h-[220px] flex items-center justify-center bg-gray-100 rounded border text-gray-400">
-              <span>Chọn ảnh để xem lớn</span>
-            </div>
-          )}
-        </div>
-        <div className="w-full flex items-center justify-center mb-6 min-h-[240px]">
-          <div className="w-[400px] max-w-full">
-            <Pose3DViewer points={selectedKeypoints} height={300} />
-            {!selectedKeypoints && (
-              <div className="text-xs text-muted-foreground mt-2 text-center">
-                Chọn ảnh có keypoints để xem khung xương 3D (kéo để xoay, lăn để zoom).
-              </div>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* CỘT PHẢI */}
@@ -399,9 +380,6 @@ export default function FormHuanluyenMohinh(props: any) {
                 className="w-20 object-cover rounded cursor-pointer"
                 onClick={() => handleSelectImage(img)}
               />
-              <div className="flex-1">
-                <div className="text-xs font-medium">{img.customName}</div>
-              </div>
               <button
                 type="button"
                 className="text-red-600 text-xl font-bold px-2"

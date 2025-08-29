@@ -54,7 +54,7 @@ export default function MainLayout({
   return (
     <html lang="vi">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased clearfix flex flex-col min-h-screen gap-4`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased clearfix flex flex-col min-h-screen`}
       >
         <CheckAuthWrapper>
         <header className="border-b bg-background/95 sticky top-0 z-30">
@@ -88,7 +88,7 @@ export default function MainLayout({
             </DropdownMenu>
           </div>
         </header>
-        <main className="container-lg flex-1 flex mt-4">
+        <main className="container-lg flex-1 flex">
           {children}
         </main>
         </CheckAuthWrapper>

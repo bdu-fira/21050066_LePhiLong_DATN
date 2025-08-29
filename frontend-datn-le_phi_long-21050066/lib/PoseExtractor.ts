@@ -19,7 +19,7 @@ export async function initPoseExtractor() {
       locateFile: (file: string) => `/mediapipe/pose/${file}`,
     });
     pose.setOptions({
-      modelComplexity: 2,
+      modelComplexity: 1,
       smoothLandmarks: true,
       enableSegmentation: true,
       minDetectionConfidence: 0.8,
@@ -30,7 +30,6 @@ export async function initPoseExtractor() {
   
   // Hàm rút trích đặc trưng cho 1 ảnh
   export async function extract(file: File, pose: any): Promise<number[][] | null> {
-  
     return new Promise((resolve, reject) => {
       pose.onResults((results: any) => {
         if (results?.poseWorldLandmarks) {
@@ -108,3 +107,30 @@ export async function initPoseExtractor() {
       ctx.fill();
     });
   }
+
+const __POSE_CONNECTIONS__: number[][] = [
+  [11, 13], [13, 15], [15, 17], [15, 19], [15, 21], [17, 19],
+  [12, 14], [14, 16], [16, 18], [16, 20], [16, 22], [18, 20],
+  [11, 12], [23, 24], [11, 23], [12, 24], [23, 25], [25, 27],
+  [27, 29], [29, 31], [27, 31], [24, 26], [26, 28], [28, 30],
+  [30, 32], [28, 32],
+];
+
+export async function extractFromVideo(videoEl: HTMLVideoElement, pose?: any): Promise<any | null> {
+  const p = pose || (await initPoseExtractor());
+  return new Promise((resolve) => {
+    try {
+      p.onResults((results: any) => {
+        const lm2d = results?.poseLandmarks || null;
+        const lm3d = results?.poseWorldLandmarks || null;
+        if (!lm2d && !lm3d) { resolve(null); return; }
+        const keypoints = lm2d ? lm2d.map((pt: any) => [pt.x, pt.y]) : [];
+        const poseWorldLandmarks = lm3d ? lm3d.map((pt: any) => [pt.x, pt.y, pt.z]) : [];
+        resolve({ keypoints, poseWorldLandmarks, connections: __POSE_CONNECTIONS__ });
+      });
+      p.send({ image: videoEl });
+    } catch {
+      resolve(null);
+    }
+  });
+}

@@ -195,6 +195,7 @@ export default function FormHuanluyenMohinh(props: any) {
 
       setFormStatus("Đang huấn luyện model...");
       const { valAcc, weightsFile, modelJson } = await trainPoseClassifier(poseData);
+      console.log(weightsFile)
 
       // lưu accuracy và trạng thái đã huấn luyện
       form.setValue("lastTrainResult", valAcc, { shouldDirty: true, shouldValidate: true });

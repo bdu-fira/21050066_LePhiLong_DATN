@@ -13,9 +13,9 @@ import { getExercise } from "../api/getExercise";
 import { getModels } from "../api/getModels";
 import { initPoseExtractor, extractFromVideo, drawPose } from "@/lib/PoseExtractor";
 import PoseCls from "@/lib/PoseClassification";
-import { Pose } from "@/public/mediapipe/pose";
 
 const REST_SECONDS = 1;
+const CONF_THRESHOLD = 0.85;
 
 export default function FormRalenhGiamsatTapluyen(props: any) {
   const screen = React.useRef<HTMLDivElement | null>(null);
@@ -28,6 +28,7 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
     currentPoseViewerModel: undefined,
     currentModelJson: undefined,
     currentModelUrl: undefined,
+    currentPositions: [],
   });
 
   const [isRest, setIsRest] = React.useState(false);
@@ -40,6 +41,8 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
   const poseRef = React.useRef<any>(null);
 
   const [worldLms, setWorldLms] = React.useState<any[] | null>(null);
+  const [predResult, setPredResult] = React.useState<any>(null);
+  const lastPredRef = React.useRef<string>("");
 
   const trackUrl = (u: any) => { if (typeof u === "string" && u.startsWith("blob:")) urlBucketRef.current.push(u); };
   const revokeAll = () => { try { urlBucketRef.current.forEach((u) => { try { URL.revokeObjectURL(u); } catch {} }); } finally { urlBucketRef.current = []; } };
@@ -110,7 +113,14 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
       if (cancelled) return;
       setExercises(preloaded);
       if (preloaded.length > 0) await loadData(0, preloaded);
-      else setCurrent({ name: "", set: 0, rep: 0, currentPredictModel: undefined, currentPoseViewerModel: undefined, currentModelJson: undefined, currentModelUrl: undefined });
+      else setCurrent({
+        name: "", set: 0, rep: 0,
+        currentPredictModel: undefined,
+        currentPoseViewerModel: undefined,
+        currentModelJson: undefined,
+        currentModelUrl: undefined,
+        currentPositions: [],
+      });
     })();
 
     return () => { cancelled = true; revokeAll(); };
@@ -129,15 +139,17 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
       currentPoseViewerModel: ex?._instructionUrl,
       currentModelJson: ex?._modelJson,
       currentModelUrl: ex?._modelUrl,
+      currentPositions: ex?.positions || [],
     });
     setCurrentIndex(index);
 
-    poseRef.current = await initPoseExtractor(); 
-    await PoseCls.load(ex?._modelJson, ex?._weightBin)
+    try { poseRef.current = await initPoseExtractor(); } catch { poseRef.current = null; }
+    try { if (ex?._modelJson && ex?._weightBin) await PoseCls.load(ex._modelJson, ex._weightBin); } catch {}
     setWorldLms(null);
+    setPredResult(null);
+    lastPredRef.current = "";
   }, [exercises]);
 
-  // onFrame TỐI GIẢN: chỉ extract -> nếu có landmarks thì lưu state
   const onFrame = React.useCallback(async (videoEl: HTMLVideoElement) => {
     if (!poseRef.current || !videoEl || videoEl.readyState < 2) return
     const r = await extractFromVideo(videoEl, poseRef.current)
@@ -177,15 +189,28 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
     return () => clearInterval(t);
   }, [isRest, pendingIndex, loadData]);
 
-  const predict = () => {
-    const v = Array.isArray(worldLms) ? worldLms.flatMap((p: any) => [p.x, p.y, p.z]) : []
-    const out = PoseCls.predictFromLandmarks(v)
-    return out
-  }
-
+  // Chỉ cập nhật state khi độ tin cậy > CONF_THRESHOLD
   React.useEffect(() => {
-    predict()
+    if (!worldLms || !PoseCls.ready()) return
+    const out = PoseCls.predictFromLandmarks(worldLms as any)
+    if (!out || !Array.isArray(out.probs)) return
+    const bestIdx = out.index
+    const bestProb = out.probs[bestIdx] as number ?? 0
+    if (bestProb < CONF_THRESHOLD) return 
+    const key = `${bestIdx}:${bestProb.toFixed(3)}`
+    if (lastPredRef.current !== key) {
+      lastPredRef.current = key
+      setPredResult(out)
+    }
   }, [worldLms])
+
+  const bestIdx = predResult?.index
+  const currentPoseName = typeof bestIdx === 'number' && Array.isArray(current?.currentPositions)
+    ? (current.currentPositions[bestIdx]?.name || '')
+    : ''
+  const currentPoseProb = (typeof bestIdx === 'number' && Array.isArray(predResult?.probs))
+    ? predResult.probs[bestIdx]
+    : undefined
 
   return (
     <div ref={screen} className="bg-black text-white w-screen flex flex-col gap-8 p-10">
@@ -201,7 +226,12 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
       </div>
 
       <div className="flex">
-        <MonitorSection reps={0} errors={0} />
+        <MonitorSection
+          reps={0}
+          errors={0}
+          pose={currentPoseName}
+          poseProb={currentPoseProb}
+        />
       </div>
 
       <FooterPageTapLuyen currentIndex={currentIndex} total={exercises.length} onPrev={onPrev} onNext={onNext} />

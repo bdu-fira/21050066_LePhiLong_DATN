@@ -5,6 +5,7 @@ import { Exercise } from 'src/entities/exercise.entity';
 import { Muscle } from 'src/entities/muscle.entity';
 import { Repository } from 'typeorm';
 import * as fs from 'fs';
+import * as os from 'os';
 import { ExerciseLevel } from 'src/entities/exerciselevel.entity';
 import { EvaluationCriteria } from 'src/entities/evaluationcriteria.entity';
 import { Position } from 'src/entities/position.entity';
@@ -12,6 +13,7 @@ import { Joint } from 'src/entities/joint.entity';
 import { Schedule } from 'src/entities/schedule.entity';
 import { ScheduleDetail } from 'src/entities/scheduledetail.entity';
 import e from 'express';
+import { spawn } from 'child_process';
 
 @Injectable()
 export class ExerciseService {
@@ -53,7 +55,6 @@ export class ExerciseService {
       
       console.log('Creating exercise with payload:', payload);
   
-      // Kiểm tra trùng tên (case-insensitive)
       const existed = await this._exerciseRepository
         .createQueryBuilder('ex')
         .where('LOWER(ex.name) = LOWER(:name)', { name })
@@ -63,7 +64,6 @@ export class ExerciseService {
         return { isSuccess: false, statusCode: 409, message: 'Tên bài tập đã tồn tại!' };
       }
   
-      // Tạo bài tập
       const saved = await this._exerciseRepository.save(
         this._exerciseRepository.create({ name, minAge, maxAge, calo })
       );
@@ -78,21 +78,11 @@ export class ExerciseService {
         })))
         .execute();
 
-      // Tạo từng dòng position
       await this._positionRepository.save(
         [
-          {
-            exerciseID: saved.id,
-            name: 'Label 01',
-          },
-          {
-            exerciseID: saved.id,
-            name: 'Label 02',
-          },
-          {
-            exerciseID: saved.id,
-            name: 'Label 03',
-          },
+          { exerciseID: saved.id, name: 'Label 01' },
+          { exerciseID: saved.id, name: 'Label 02' },
+          { exerciseID: saved.id, name: 'Label 03' },
         ],
       )
   
@@ -120,44 +110,23 @@ export class ExerciseService {
           : NaN;
   
       const qb = this._exerciseRepository.createQueryBuilder('ex');
-  
-      // Join chỉ khi cần lọc theo nhóm cơ
-      if (!Number.isNaN(gid)) {
-        qb.innerJoin('ex.muscles', 'm'); // dùng để filter
-      }
+      if (!Number.isNaN(gid)) qb.innerJoin('ex.muscles', 'm');
   
       const clauses: string[] = [];
       const params: any = {};
-  
-      if (name) {
-        clauses.push('ex.name LIKE :name');
-        params.name = `%${name}%`;
-      }
-      if (!Number.isNaN(gid)) {
-        clauses.push('m.groupId = :gid'); // nếu cột là m.id thì đổi thành 'm.id = :gid'
-        params.gid = gid;
-      }
+      if (name) { clauses.push('ex.name LIKE :name'); params.name = `%${name}%`; }
+      if (!Number.isNaN(gid)) { clauses.push('m.groupId = :gid'); params.gid = gid; }
   
       qb.where(clauses.length ? clauses.join(' AND ') : '1=1')
         .orderBy('ex.id', 'ASC');
   
       const data = await qb.getMany();
   
-      return {
-        isSuccess: true,
-        statusCode: 200,
-        message: 'Lấy danh sách bài tập thành công',
-        data,
-      };
+      return { isSuccess: true, statusCode: 200, message: 'Lấy danh sách bài tập thành công', data };
     } catch {
-      return {
-        isSuccess: false,
-        statusCode: 500,
-        message: 'Lỗi hệ thống, vui lòng thử lại sau.',
-      };
+      return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
     }
   }
-  
   
   async findOne(payload: any) {
     try {
@@ -169,81 +138,37 @@ export class ExerciseService {
           positions: { evaluationCriteria: {joints: true} },
         },
       });
-  
-      if (!exercise) {
-        return {
-          isSuccess: false,
-          statusCode: 404,
-          message: 'Bài tập không tồn tại!',
-        };
-      }
-  
-      return {
-        isSuccess: true,
-        statusCode: 200,
-        message: 'Tìm thành công',
-        data: exercise,
-      };
+      if (!exercise) return { isSuccess: false, statusCode: 404, message: 'Bài tập không tồn tại!' };
+      return { isSuccess: true, statusCode: 200, message: 'Tìm thành công', data: exercise };
     } catch (e) {
-      return {
-        isSuccess: false,
-        statusCode: 500,
-        message: 'Lỗi hệ thống, vui lòng thử lại sau.',
-      };
+      return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
     }
   }
   
-
   async delete(payload: any) {
     try {
-      const exercise = await this._exerciseRepository.findOne({
-        where: { id: payload.id }
-      });
-  
-      if (!exercise) {
-        return {
-          isSuccess: false,
-          statusCode: 404,
-          message: 'Bài tập không tồn tại!'
-        };
-      }
+      const exercise = await this._exerciseRepository.findOne({ where: { id: payload.id } });
+      if (!exercise) return { isSuccess: false, statusCode: 404, message: 'Bài tập không tồn tại!' };
 
       const abs = path.join(process.cwd(), 'uploads', String(payload.id)); 
-
-      if (fs.existsSync(abs)) {
-        fs.rmSync(abs, { recursive: true, force: true });
-      }
+      if (fs.existsSync(abs)) fs.rmSync(abs, { recursive: true, force: true });
   
       await this._exerciseRepository.remove(exercise);
-  
-      return {
-        isSuccess: true,
-        statusCode: 200,
-        message: 'Xóa bài tập thành công!'
-      };
+      return { isSuccess: true, statusCode: 200, message: 'Xóa bài tập thành công!' };
     } catch (e) {
       console.log(e)
-      return {
-        isSuccess: false,
-        statusCode: 500,
-        message: 'Lỗi hệ thống, vui lòng thử lại sau.',
-      };
+      return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
     }
   }
 
   async updateInfo(payload: any) {
     try {
       const id = Number(payload?.id);
-      if (!id) {
-        return { isSuccess: false, statusCode: 400, message: 'Thiếu id!' };
-      }
-
+      if (!id) return { isSuccess: false, statusCode: 400, message: 'Thiếu id!' };
       console.log(payload)
   
       const exercise = await this._exerciseRepository.findOne({ where: { id } });
-      if (!exercise) {
-        return { isSuccess: false, statusCode: 404, message: 'Bài tập không tồn tại!' };
-      }
+      if (!exercise) return { isSuccess: false, statusCode: 404, message: 'Bài tập không tồn tại!' };
   
       if (typeof payload.name === 'string') {
         const name = payload.name.trim();
@@ -253,42 +178,23 @@ export class ExerciseService {
             .where('LOWER(ex.name) = LOWER(:name)', { name })
             .andWhere('ex.id <> :id', { id })
             .getOne();
-  
-          if (existed) {
-            return { isSuccess: false, statusCode: 409, message: 'Tên bài tập đã tồn tại!' };
-          }
+          if (existed) return { isSuccess: false, statusCode: 409, message: 'Tên bài tập đã tồn tại!' };
           exercise.name = name;
         }
       }
-  
       if (payload.minAge !== undefined) exercise.minAge = Number(payload.minAge);
       if (payload.maxAge !== undefined) exercise.maxAge = Number(payload.maxAge);
       if (payload.calo   !== undefined) exercise.calo   = Number(payload.calo);
-  
       await this._exerciseRepository.save(exercise);
 
       if (Array.isArray(payload.muscles)) {
-        
         const rows = (payload.muscles || [])
           .map((v: any) => Number(v))
           .filter((n) => Number.isInteger(n))
           .map((gid) => ({ exerciseID: id, id: gid }));
 
-        await this._muscleRepository
-          .createQueryBuilder()
-          .delete()
-          .from(Muscle)
-          .where('exerciseID = :id', { id })
-          .execute();
-  
-        if (rows.length) {
-          await this._muscleRepository
-            .createQueryBuilder()
-            .insert()
-            .into(Muscle)
-            .values(rows)
-            .execute();
-        }
+        await this._muscleRepository.createQueryBuilder().delete().from(Muscle).where('exerciseID = :id', { id }).execute();
+        if (rows.length) await this._muscleRepository.createQueryBuilder().insert().into(Muscle).values(rows).execute();
       }
 
       if (payload.file) {
@@ -302,13 +208,7 @@ export class ExerciseService {
         isSuccess: true,
         statusCode: 200,
         message: 'Cập nhật thành công!',
-        data: {
-          id: exercise.id,
-          name: exercise.name,
-          minAge: exercise.minAge,
-          maxAge: exercise.maxAge,
-          calo: exercise.calo,
-        },
+        data: { id: exercise.id, name: exercise.name, minAge: exercise.minAge, maxAge: exercise.maxAge, calo: exercise.calo },
       };
     } catch (error) {
       return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
@@ -317,17 +217,8 @@ export class ExerciseService {
 
   async updateLevel(payload: any) {
     try {
-      const exercise = await this._exerciseRepository.findOne({
-        where: { id: payload.id },
-      });
-  
-      if (!exercise) {
-        return {
-          isSuccess: false,
-          statusCode: 404,
-          message: 'Bài tập không tồn tại!',
-        };
-      }
+      const exercise = await this._exerciseRepository.findOne({ where: { id: payload.id } });
+      if (!exercise) return { isSuccess: false, statusCode: 404, message: 'Bài tập không tồn tại!' };
   
       await this._exerciseLevelRepository.delete({ exercise: { id: payload.id } });
   
@@ -347,115 +238,102 @@ export class ExerciseService {
         relations: { levels: true },
       });
   
-      return {
-        isSuccess: true,
-        statusCode: 200,
-        message: 'Cập nhật level thành công',
-        data,
-      };
+      return { isSuccess: true, statusCode: 200, message: 'Cập nhật level thành công', data };
     } catch (e){
       console.log(e)
-      return {
-        isSuccess: false,
-        statusCode: 500,
-        message: 'Lỗi hệ thống, vui lòng thử lại sau.',
-      };
+      return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
     }
   }
   
   async updateCriteria(payload: any) {
-    try{
-      const exercise = await this._exerciseRepository.findOne({
-        where: { id: payload.id },
-      });
+    try {
+      const id = Number(payload?.id);
+      const exercise = await this._exerciseRepository.findOne({ where: { id }, relations: ['positions.evaluationCriteria'] });
+      if (!exercise) return { isSuccess: false, statusCode: 404, message: 'Bài tập không tồn tại!' };
   
-      if (!exercise) {
-        return {
-          isSuccess: false,
-          statusCode: 404,
-          message: 'Bài tập không tồn tại!',
-        };
-      }
-  
+      console.log(payload.criteria[0].jointAngle, payload.criteria[1].jointAngle)
       await this._evaluationCriteria.delete({ position: { id: payload.positionID } });
 
-      const criteria = payload.criteria.map((c: any) => ({
+      const jointList: any = []
+  
+      const criteria = (payload.criteria || []).map((c: any) => ({
         positionID: payload.positionID,
         operator: c.operator,
         angle: c.angle,
         errorMessage: c.message,
       }));
+      const criteriaResult = await this._evaluationCriteria.save(criteria);
+      criteriaResult.forEach((c: any, index: any) => {
 
-      const criteriaResult = await this._evaluationCriteria.save(criteria)
+        payload.criteria[index].jointAngle.map((data: any)=>{
+          const j = new Joint()
+          j.evaluationCriteriaID = c.id
+          j.id = data
+          jointList.push(j)
+        })
+      });
 
-      const jointList = payload.criteria.map((j: any) => ({        
-        jointID: j.jointAngle
-      }));
+      await this._joint.save(jointList)
 
-      const mappedJointList = criteriaResult.map((c: any, index: number) => ({
-        evaluationCriteria: c.id,
-        id: jointList[index].jointID,
-      }));
+      const voices = 'voices';
+      const dir = path.join(process.cwd(), 'uploads', 'exercise', String(id));
+      const voiceDir = path.join(dir, voices);
+      fs.mkdirSync(voiceDir, { recursive: true });
 
-      const flattenedJointList = mappedJointList.flatMap(item =>
-        item.id.map((i: any) => ({ evaluationCriteriaID: item.evaluationCriteria, id: i }))
-      );
-
-      await this._joint.save(flattenedJointList);
-
-      return{
-        isSuccess: true,
-        statusCode: 200,
-        message: 'Cập nhật tiêu chí thành công',
+      // Xóa tất cả file âm thanh cũ
+      const position = exercise!.positions.find((position: any)=>(position.id === payload.positionID))
+      const abs = path.join(process.cwd(), 'uploads', 'exercise', String(payload.id), 'voices'); 
+      const exerciseID = position!.exerciseID
+      if (fs.existsSync(abs)) {
+        position?.evaluationCriteria.map((criteria: any)=>{
+          const filePath = path.join(abs, String(exerciseID) + '-' + String(criteria.id)+ '.wav')
+          if(fs.existsSync(filePath))
+            fs.unlinkSync(filePath);
+        })
+      }
+      else{
+        fs.mkdirSync(abs, { recursive: true })
       }
   
-    } catch (e){
-      console.log(e)
-      return {
-        isSuccess: false,
-        statusCode: 500,
-        message: 'Lỗi hệ thống, vui lòng thử lại sau.',
-      };
-    }
-  }
+      for (const c of criteriaResult) {
+        const msg = String(c?.errorMessage || '').trim();
+        if (!msg) continue;
+        const outPath = path.join(voiceDir, `${id}-${c.id}.wav`);
+        await this.convertTextToSpeech(msg, outPath);
+      }
   
+      return { isSuccess: true, statusCode: 200, message: 'Cập nhật tiêu chí thành công' };
+    } catch (e) {
+      console.log(e);
+      return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
+    }
+  }  
+
   async updateModel(payload: any) {
     try {
       const id = Number(payload?.id);
-      if (!id) {
-        return { isSuccess: false, statusCode: 400, message: 'Thiếu id!' };
-      }
+      if (!id) return { isSuccess: false, statusCode: 400, message: 'Thiếu id!' };
 
       const exercise = await this._exerciseRepository.findOne({ where: { id } });
-      if (!exercise) {
-        return { isSuccess: false, statusCode: 404, message: 'Bài tập không tồn tại!' };
-      }
+      if (!exercise) return { isSuccess: false, statusCode: 404, message: 'Bài tập không tồn tại!' };
 
-      // Kiểm tra nếu có file tải lên
       if (payload?.modelJson || payload?.modelWeights) {
         const dir = path.join(process.cwd(), 'uploads', 'exercise', String(id));
         fs.mkdirSync(dir, { recursive: true });
 
-        // Lưu model.json nếu có
         if (payload?.modelJson) {
           const modelJsonPath = path.join(dir, 'model.json');
-          fs.writeFileSync(modelJsonPath, payload.modelJson.buffer); // Lưu model.json
+          fs.writeFileSync(modelJsonPath, payload.modelJson.buffer);
           exercise.path = path.relative(process.cwd(), modelJsonPath).replace(/\\/g, '/');
         }
-
-        // Lưu model.weights.bin nếu có
         if (payload?.modelWeights) {
           const weightsFilePath = path.join(dir, 'model.weights.bin');
-          fs.writeFileSync(weightsFilePath, payload.modelWeights.buffer); // Lưu model.weights.bin
+          fs.writeFileSync(weightsFilePath, payload.modelWeights.buffer);
         }
       }
 
-      // Cập nhật kết quả độ chính xác nếu có
-      if (payload?.accuracy !== undefined) {
-        exercise.lastTrainResult = Number(payload.accuracy);
-      }
+      if (payload?.accuracy !== undefined) exercise.lastTrainResult = Number(payload.accuracy);
 
-      // Lưu thông tin bài tập
       await this._exerciseRepository.save(exercise);
 
       const positionNames = Object.entries(JSON.parse(payload.labels)).map(([exerciseID, name]) => ({
@@ -488,6 +366,51 @@ export class ExerciseService {
     }
   }
 
+  private async convertTextToSpeech(text: string, destWav: string): Promise<void> {
+    const srcRoot = path.join(process.cwd(), 'pipertts');
+    const work = path.join(os.tmpdir(), 'piper-work');
+    const bin = path.join(work, process.platform === 'win32' ? 'piper.exe' : 'piper');
+    const esDir = path.join(work, 'espeak-ng-data');
+  
+    // Chuẩn bị runtime (copy cả thư mục pipertts vào %temp% một lần)
+    // Để xóa thư mục này tại %temp%, hãy tìm kiếm với từ khóa piper-work
+    if (!fs.existsSync(path.join(work, '.ready'))) {
+      fs.rmSync(work, { recursive: true, force: true });
+      fs.cpSync(srcRoot, work, { recursive: true });
+      try { if (process.platform !== 'win32') fs.chmodSync(bin, 0o755); } catch {}
+      fs.writeFileSync(path.join(work, '.ready'), 'ok');
+    }
+  
+    const tmpOut = path.join(work, `out-${Date.now()}-${Math.random().toString(36).slice(2)}.wav`);
+  
+    await new Promise<void>((resolve, reject) => {
+      const p = spawn(
+        bin,
+        [
+          '--model', 'vi_VN-vais1000-medium.onnx',
+          '--config', 'vi_VN-vais1000-medium.onnx.json',
+          '--output_file', path.basename(tmpOut),
+        ],
+        {
+          cwd: work,
+          env: { ...process.env, ESPEAKNG_DATA_PATH: esDir },
+          stdio: ['pipe', 'pipe', 'pipe'],
+          windowsHide: true,
+        }
+      );
+  
+      let err = '';
+      p.stderr.on('data', d => err += d.toString());
+      p.on('error', reject);
+      p.on('close', code => code === 0 ? resolve() : reject(new Error(`piper exit ${code}${err ? `\n${err}` : ''}`)));
+  
+      p.stdin.end(String(text ?? '').trim() + '\n', 'utf8');
+    });
+  
+    fs.mkdirSync(path.dirname(destWav), { recursive: true });
+    fs.copyFileSync(tmpOut, destWav);
+  }
+
   async getExercise(payload: any) {
     try {
       const date = String(payload?.date ?? '').trim();
@@ -498,7 +421,6 @@ export class ExerciseService {
         where: { traineeID: userId },
         relations: ['details', 'details.exercise'],
       })!;
-  
   
       const details = (schedule!.details || []).filter((x: any) => String(x.date) === date);
   
@@ -516,28 +438,36 @@ export class ExerciseService {
         const modelPath = path.join(dir, 'model.json');
         const weightsPath = path.join(dir, 'model.weights.bin');
         const fbxPath = path.join(dir, 'instruction.fbx');
-  
-        const okModel = fs.existsSync(modelPath);
-        const okFbx = fs.existsSync(fbxPath);
-        const criteria = (ex.positions || []).flatMap((p: any) => p.evaluationCriteria || []);
-  
-        if (!okModel || !okFbx || !criteria.length) {
-          return { isSuccess: false, statusCode: 500, message: 'Xảy ra lỗi khi nạp dữ liệu, vui lòng tải lại trang.' };
-        }
+        const voicePaths = path.join(dir, 'voices');
+        let voiceFiles: any = []
+        fs.readdir(voicePaths, 
+          { withFileTypes: true },
+          (err, files: any) => {
+            if(!err)
+              files.forEach(file => {
+                voiceFiles.push(path.join('uploads', 'exercise', String(ex.id), file.name));
+              })
+        })
+
+        const positions = (ex.positions || []).map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          evaluationCriteria: (p.evaluationCriteria || []).map((c: any) => ({
+            id: c.id,
+            operator: c.operator,
+            angle: c.angle,
+            errorMessage: c.errorMessage,
+            joints: (c.joints || []).map((j: any) => j.id),
+          })),
+        }));
   
         data.push({
           id: ex.id,
           name: ex.name,
           set: level?.set ?? null,
           rep: level?.rep ?? null,
-          evaluationCriteria: criteria.map((c: any) => ({
-            id: c.id,
-            position: c.positionID,
-            operator: c.operator,
-            angle: c.angle,
-            errorMessage: c.errorMessage,
-            joints: (c.joints || []).map((j: any) => j.id),
-          })),
+          positions,
+          voicePaths: voiceFiles,
           model: {
             model: path.relative(process.cwd(), modelPath).replace(/\\/g, '/'),
             weight: path.relative(process.cwd(), weightsPath).replace(/\\/g, '/'),

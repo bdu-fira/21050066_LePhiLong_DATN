@@ -27,5 +27,4 @@ export const formCapnhatTieuchiSchema = z.object({
           .min(1, 'Nhập message'),
       })
     )
-    .min(1, 'Phải có ít nhất 1 tiêu chí'),
 });

@@ -169,7 +169,7 @@ export default function PoseViewer3D({ src }: any) {
   return (
     <div
       ref={containerRef}
-      className="relative w-full aspect-video bg-neutral-900 rounded-xl overflow-hidden"
+      className="h-full relative w-full aspect-video bg-neutral-900 rounded-xl overflow-hidden"
     />
   );
 }

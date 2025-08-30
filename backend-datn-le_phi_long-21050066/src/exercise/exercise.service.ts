@@ -52,9 +52,7 @@ export class ExerciseService {
       const muscles: any = Array.isArray(payload?.muscles)
         ? [...new Set(payload.muscles.map((x: any) => Number(x)))]
         : [];
-      
-      console.log('Creating exercise with payload:', payload);
-  
+        
       const existed = await this._exerciseRepository
         .createQueryBuilder('ex')
         .where('LOWER(ex.name) = LOWER(:name)', { name })
@@ -93,7 +91,6 @@ export class ExerciseService {
         data: { id: saved.id, name: saved.name, minAge: saved.minAge, maxAge: saved.maxAge, calo: saved.calo },
       };
     } catch (e) {
-      console.log(e);
       return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
     }
   }
@@ -156,7 +153,6 @@ export class ExerciseService {
       await this._exerciseRepository.remove(exercise);
       return { isSuccess: true, statusCode: 200, message: 'Xóa bài tập thành công!' };
     } catch (e) {
-      console.log(e)
       return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
     }
   }
@@ -165,7 +161,6 @@ export class ExerciseService {
     try {
       const id = Number(payload?.id);
       if (!id) return { isSuccess: false, statusCode: 400, message: 'Thiếu id!' };
-      console.log(payload)
   
       const exercise = await this._exerciseRepository.findOne({ where: { id } });
       if (!exercise) return { isSuccess: false, statusCode: 404, message: 'Bài tập không tồn tại!' };
@@ -240,7 +235,6 @@ export class ExerciseService {
   
       return { isSuccess: true, statusCode: 200, message: 'Cập nhật level thành công', data };
     } catch (e){
-      console.log(e)
       return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
     }
   }
@@ -251,7 +245,6 @@ export class ExerciseService {
       const exercise = await this._exerciseRepository.findOne({ where: { id }, relations: ['positions.evaluationCriteria'] });
       if (!exercise) return { isSuccess: false, statusCode: 404, message: 'Bài tập không tồn tại!' };
   
-      console.log(payload.criteria[0].jointAngle, payload.criteria[1].jointAngle)
       await this._evaluationCriteria.delete({ position: { id: payload.positionID } });
 
       const jointList: any = []
@@ -283,10 +276,9 @@ export class ExerciseService {
       // Xóa tất cả file âm thanh cũ
       const position = exercise!.positions.find((position: any)=>(position.id === payload.positionID))
       const abs = path.join(process.cwd(), 'uploads', 'exercise', String(payload.id), 'voices'); 
-      const exerciseID = position!.exerciseID
       if (fs.existsSync(abs)) {
         position?.evaluationCriteria.map((criteria: any)=>{
-          const filePath = path.join(abs, String(exerciseID) + '-' + String(criteria.id)+ '.wav')
+          const filePath = path.join(abs, String(payload.positionID) + '-' + String(criteria.id)+ '.wav')
           if(fs.existsSync(filePath))
             fs.unlinkSync(filePath);
         })
@@ -298,13 +290,12 @@ export class ExerciseService {
       for (const c of criteriaResult) {
         const msg = String(c?.errorMessage || '').trim();
         if (!msg) continue;
-        const outPath = path.join(voiceDir, `${id}-${c.id}.wav`);
+        const outPath = path.join(voiceDir, `${payload.positionID}-${c.id}.wav`);
         await this.convertTextToSpeech(msg, outPath);
       }
   
       return { isSuccess: true, statusCode: 200, message: 'Cập nhật tiêu chí thành công' };
     } catch (e) {
-      console.log(e);
       return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
     }
   }  
@@ -361,24 +352,46 @@ export class ExerciseService {
         },
       };
     } catch (e) {
-      console.log(e);
       return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
     }
   }
 
   private async convertTextToSpeech(text: string, destWav: string): Promise<void> {
-    const srcRoot = path.join(process.cwd(), 'pipertts');
+    const candidateSrcDirs = [
+      path.join(process.cwd(), 'pipertts'),
+      path.join(__dirname, '..', '..', 'pipertts'),
+      path.join(__dirname, 'pipertts'),
+    ];
+    const srcRoot = candidateSrcDirs.find(p => fs.existsSync(p));
+    if (!srcRoot) {
+      throw new Error(`[TTS] Không tìm thấy thư mục 'pipertts' ở các vị trí:\n- ${candidateSrcDirs.join('\n- ')}`);
+    }
+  
     const work = path.join(os.tmpdir(), 'piper-work');
-    const bin = path.join(work, process.platform === 'win32' ? 'piper.exe' : 'piper');
+    const bin   = path.join(work, process.platform === 'win32' ? 'piper.exe' : 'piper');
+    const model = path.join(work, 'vi_VN-vais1000-medium.onnx');
+    const cfg   = path.join(work, 'vi_VN-vais1000-medium.onnx.json');
     const esDir = path.join(work, 'espeak-ng-data');
   
-    // Chuẩn bị runtime (copy cả thư mục pipertts vào %temp% một lần)
-    // Để xóa thư mục này tại %temp%, hãy tìm kiếm với từ khóa piper-work
-    if (!fs.existsSync(path.join(work, '.ready'))) {
-      fs.rmSync(work, { recursive: true, force: true });
+    // Hàm kiểm tra đủ thành phần
+    const isReady = () =>
+      fs.existsSync(bin) &&
+      fs.existsSync(model) &&
+      fs.existsSync(cfg) &&
+      fs.existsSync(esDir);
+  
+    // Nếu thiếu thì copy lại từ pipertts
+    if (!isReady()) {
+      try { fs.rmSync(work, { recursive: true, force: true }); } catch {}
       fs.cpSync(srcRoot, work, { recursive: true });
-      try { if (process.platform !== 'win32') fs.chmodSync(bin, 0o755); } catch {}
-      fs.writeFileSync(path.join(work, '.ready'), 'ok');
+      try {
+        if (process.platform !== 'win32' && fs.existsSync(bin)) fs.chmodSync(bin, 0o755);
+      } catch {}
+    }
+  
+    // Kiểm tra lần cuối
+    if (!isReady()) {
+      throw new Error(`[TTS] Không thể chuẩn bị Piper runtime trong ${work}`);
     }
   
     const tmpOut = path.join(work, `out-${Date.now()}-${Math.random().toString(36).slice(2)}.wav`);
@@ -386,11 +399,7 @@ export class ExerciseService {
     await new Promise<void>((resolve, reject) => {
       const p = spawn(
         bin,
-        [
-          '--model', 'vi_VN-vais1000-medium.onnx',
-          '--config', 'vi_VN-vais1000-medium.onnx.json',
-          '--output_file', path.basename(tmpOut),
-        ],
+        ['--model', path.basename(model), '--config', path.basename(cfg), '--output_file', path.basename(tmpOut)],
         {
           cwd: work,
           env: { ...process.env, ESPEAKNG_DATA_PATH: esDir },
@@ -400,9 +409,9 @@ export class ExerciseService {
       );
   
       let err = '';
-      p.stderr.on('data', d => err += d.toString());
+      p.stderr.on('data', d => { err += d.toString(); });
       p.on('error', reject);
-      p.on('close', code => code === 0 ? resolve() : reject(new Error(`piper exit ${code}${err ? `\n${err}` : ''}`)));
+      p.on('close', code => code === 0 ? resolve() : reject(new Error(`[TTS] Piper exit ${code}${err ? `\n${err}` : ''}`)));
   
       p.stdin.end(String(text ?? '').trim() + '\n', 'utf8');
     });
@@ -410,7 +419,7 @@ export class ExerciseService {
     fs.mkdirSync(path.dirname(destWav), { recursive: true });
     fs.copyFileSync(tmpOut, destWav);
   }
-
+  
   async getExercise(payload: any) {
     try {
       const date = String(payload?.date ?? '').trim();
@@ -423,7 +432,6 @@ export class ExerciseService {
       })!;
   
       const details = (schedule!.details || []).filter((x: any) => String(x.date) === date);
-  
       const data: any[] = [];
       for (const d of details) {
         const ex = await this._exerciseRepository.findOne({
@@ -445,7 +453,7 @@ export class ExerciseService {
           (err, files: any) => {
             if(!err)
               files.forEach(file => {
-                voiceFiles.push(path.join('uploads', 'exercise', String(ex.id), file.name));
+                voiceFiles.push(path.join('uploads', 'exercise', String(ex.id), 'voices', file.name));
               })
         })
 
@@ -454,6 +462,7 @@ export class ExerciseService {
           name: p.name,
           evaluationCriteria: (p.evaluationCriteria || []).map((c: any) => ({
             id: c.id,
+            positionID: p.id,
             operator: c.operator,
             angle: c.angle,
             errorMessage: c.errorMessage,
@@ -466,6 +475,7 @@ export class ExerciseService {
           name: ex.name,
           set: level?.set ?? null,
           rep: level?.rep ?? null,
+          scheduleDetailID: d.id,
           positions,
           voicePaths: voiceFiles,
           model: {

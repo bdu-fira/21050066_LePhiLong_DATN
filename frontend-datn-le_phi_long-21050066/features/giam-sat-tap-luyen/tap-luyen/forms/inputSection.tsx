@@ -6,6 +6,7 @@ type Props = {
   onDraw?: (canvasEl: HTMLCanvasElement, result: any, videoEl: HTMLVideoElement) => void;
   overlayRef?: React.Ref<HTMLCanvasElement>; // <-- chấp nhận mọi kiểu ref hợp lệ
 };
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 export default function InputSection({ onFrame, onDraw, overlayRef }: Props) {
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
@@ -81,10 +82,13 @@ export default function InputSection({ onFrame, onDraw, overlayRef }: Props) {
             onDraw(overlay, result, video);
           }
 
+          await sleep(40); // "ngủ" 0.1s
+
           rafRef.current = requestAnimationFrame(loop);
         };
 
         rafRef.current = requestAnimationFrame(loop);
+
       } catch {}
     };
 
@@ -105,12 +109,12 @@ export default function InputSection({ onFrame, onDraw, overlayRef }: Props) {
   }, []); // không đưa onFrame/onDraw vào deps để tránh re-init stream
 
   return (
-    <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden">
+    <div className="col-span-3 relative w-full aspect-video bg-black rounded-xl overflow-hidden">
       <video
         ref={videoRef}
         playsInline
         muted
-        className="w-full h-full object-cover"
+        className="w-full h-full object-cover rounded-xl"
         onClick={() => videoRef.current?.play().catch(() => {})}
       />
       <canvas

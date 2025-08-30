@@ -13,6 +13,7 @@ import { getExercise } from "../api/getExercise";
 import { getModels } from "../api/getModels";
 import { initPoseExtractor, extractFromVideo, drawPose } from "@/lib/PoseExtractor";
 import PoseCls from "@/lib/PoseClassification";
+import ExpertTrainer, { calculateJoints, check, feedOrder, resetOrder, speak } from "@/lib/ExpertTrainer";
 
 const REST_SECONDS = 1;
 const CONF_THRESHOLD = 0.85;
@@ -23,13 +24,21 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
   const [exercises, setExercises] = React.useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = React.useState(0);
   const [current, setCurrent] = React.useState<any>({
+    id: undefined,
     name: "", set: 0, rep: 0,
+    scheduleDetailID: undefined,
     currentPredictModel: undefined,
     currentPoseViewerModel: undefined,
     currentModelJson: undefined,
     currentModelUrl: undefined,
     currentPositions: [],
   });
+
+  const [set, setSet] = React.useState(1)
+  const [rep, setRep] = React.useState(0)
+  const [error, setError] = React.useState<any>(null);
+  const [errors, setErrors] = React.useState<any[]>([]);
+  const [errorCount, setErrorCount] = React.useState(0)
 
   const [isRest, setIsRest] = React.useState(false);
   const [restLeft, setRestLeft] = React.useState(REST_SECONDS);
@@ -57,6 +66,7 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
         : e?.name === "NotFoundError" ? "Không tìm thấy thiết bị camera."
         : "Không truy cập được camera.";
       setCameraError(m);
+      return <ErrorOverlay open={true} message={'Có lỗi xảy ra khi đọc camera, hãy cấp quyền truy cập và tải lại trang.'} onReload={()=>{window.location.reload()}} />
     }
   }, []);
 
@@ -76,14 +86,24 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
           const modelPath = ex?.model?.model;
           const weightPath = ex?.model?.weight;
           const instructionPath = ex?.model?.instruction;
+          const voicePaths = ex.voicePaths
+          const rules = ex.positions.map((position: any, index: number) => {
+            let criteria = position.evaluationCriteria
+            return {...criteria}
+          })
+
+          out.rules = rules
 
           try {
+            try { poseRef.current = await initPoseExtractor(); } catch { poseRef.current = null; }
             if (modelPath) {
               const mj: any = await getModels(modelPath);
               out._modelJson = mj;
               out._modelUrl = modelPath;
             }
-          } catch {}
+          } catch {
+            return <ErrorOverlay open={true} message={'Có lỗi xảy ra khi nạp mô hình, vui lòng tải lại trang.'} onReload={()=>{window.location.reload()}} />
+          }
           try {
             if (weightPath) {
               const wb: any = await getModels(weightPath);
@@ -94,7 +114,9 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
                 trackUrl(url);
               }
             }
-          } catch {}
+          } catch {
+            return <ErrorOverlay open={true} message={'Có lỗi xảy ra khi nạp mô hình, vui lòng tải lại trang.'} onReload={()=>{window.location.reload()}} />
+          }
           try {
             if (instructionPath) {
               const ins: any = await getModels(instructionPath);
@@ -104,8 +126,29 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
                 trackUrl(url);
               }
             }
-          } catch {}
 
+            if(voicePaths) {
+              const voices = []
+              for (const path of voicePaths){
+                const voiceBlob = await getModels(path)
+                const url = URL.createObjectURL(voiceBlob)
+                const audio = new Audio(url)
+                trackUrl(url)
+
+                const audioName = path.split("\\").pop()!.replace(".wav", "").split('-')
+                const positionID = Number(audioName[0])
+                const criteriaID = Number(audioName[1])
+                voices.push({
+                  "positionID": positionID,
+                  "criteriaID": criteriaID,
+                  "audio": audio 
+                })
+              }
+              out.voices = voices
+            }
+          } catch {
+            return <ErrorOverlay open={true} message={'Có lỗi xảy ra khi nạp hệ chuyên gia, vui lòng tải lại trang.'} onReload={()=>{window.location.reload()}} />
+          }
           return out;
         })
       );
@@ -114,12 +157,15 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
       setExercises(preloaded);
       if (preloaded.length > 0) await loadData(0, preloaded);
       else setCurrent({
+        id: undefined,
         name: "", set: 0, rep: 0,
+        scheduleDetailID: undefined,
         currentPredictModel: undefined,
         currentPoseViewerModel: undefined,
         currentModelJson: undefined,
         currentModelUrl: undefined,
         currentPositions: [],
+        currentVoices: []
       });
     })();
 
@@ -132,21 +178,26 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
     if (!ex) return;
 
     setCurrent({
+      id: ex?.id,
       name: ex?.name || "",
       set: ex?.set || 0,
       rep: ex?.rep || 0,
+      scheduleDetailID: ex.scheduleDetailID,
       currentPredictModel: ex?._weightUrl,
       currentPoseViewerModel: ex?._instructionUrl,
       currentModelJson: ex?._modelJson,
       currentModelUrl: ex?._modelUrl,
       currentPositions: ex?.positions || [],
+      currentVoices: ex?.voices || []
     });
     setCurrentIndex(index);
 
-    try { poseRef.current = await initPoseExtractor(); } catch { poseRef.current = null; }
     try { if (ex?._modelJson && ex?._weightBin) await PoseCls.load(ex._modelJson, ex._weightBin); } catch {}
+    ExpertTrainer.loadData(ex.rules, ex.voices)
+    resetOrder();
     setWorldLms(null);
     setPredResult(null);
+    setRep(0)
     lastPredRef.current = "";
   }, [exercises]);
 
@@ -191,18 +242,62 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
 
   // Chỉ cập nhật state khi độ tin cậy > CONF_THRESHOLD
   React.useEffect(() => {
+    // Phần dự đoán động tác
+    poseClassify()
+  }, [worldLms])
+
+  const poseClassify = () => {
     if (!worldLms || !PoseCls.ready()) return
     const out = PoseCls.predictFromLandmarks(worldLms as any)
     if (!out || !Array.isArray(out.probs)) return
     const bestIdx = out.index
     const bestProb = out.probs[bestIdx] as number ?? 0
-    if (bestProb < CONF_THRESHOLD) return 
+    if (bestProb < CONF_THRESHOLD) return
     const key = `${bestIdx}:${bestProb.toFixed(3)}`
     if (lastPredRef.current !== key) {
       lastPredRef.current = key
       setPredResult(out)
     }
-  }, [worldLms])
+  }
+
+  React.useEffect(() => {
+    // Phần cảnh báo hệ từ hệ chuyên gia
+    if(predResult)
+      response()
+  }, [predResult, worldLms])
+
+  const response = () => {
+    const bestIdx = predResult.index;
+    const angles = calculateJoints(worldLms);
+  
+    // lấy MỘT lỗi đầu tiên của phase hiện tại (nếu chưa có lỗi cho rep này)
+    const e = check(current.currentPositions[bestIdx].id, angles);
+
+    if (!error && e) setError(e);
+  
+    // hoàn tất 1 rep theo correctOrder
+    if (feedOrder(bestIdx)) {
+      const nextRep = rep + 1;
+      setRep(nextRep);
+  
+      if (error) {
+        setErrorCount(c => c + 1);
+        setErrors(list => ([
+          ...list,
+          {
+            scheduleDetailID: current.scheduleDetailID,
+            set, 
+            rep: nextRep,         
+            positionName: current.currentPositions[bestIdx]?.name || "", 
+            actualAngle: Math.round(error.actualAngle ?? 0),
+            errorMessage: error.errorMessage,
+          }
+        ]));
+        ExpertTrainer.speak(error.positionID, error.criteriaID)
+      }
+      setError(null); // reset lỗi cho rep kế tiếp
+    }
+  };
 
   const bestIdx = predResult?.index
   const currentPoseName = typeof bestIdx === 'number' && Array.isArray(current?.currentPositions)
@@ -218,20 +313,19 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
 
       <div className="flex justify-between px-4 flex-1">
         <div className="w-full">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-5 gap-4">
             <InputSection onFrame={onFrame} onDraw={onDraw} />
             <PoseViewer3D src={current?.currentPoseViewerModel} />
+            <MonitorSection
+              sets={set}
+              reps={rep}
+              errors={errorCount}
+              pose={currentPoseName}
+              poseProb={currentPoseProb}
+            />
           </div>
         </div>
-      </div>
-
-      <div className="flex">
-        <MonitorSection
-          reps={0}
-          errors={0}
-          pose={currentPoseName}
-          poseProb={currentPoseProb}
-        />
+        
       </div>
 
       <FooterPageTapLuyen currentIndex={currentIndex} total={exercises.length} onPrev={onPrev} onNext={onNext} />

@@ -2,8 +2,8 @@ export const JOINT_ANGLE_OPTIONS = [
   // ----- BÊN PHẢI -----
   {
     label: 'Góc vai phải',
-    value: [12, 14, 24], // RIGHT_SHOULDER, RIGHT_ELBOW, RIGHT_HIP
-    display: 'Cổ - Vai phải - Cùi chỏ phải',
+    value: [14, 12, 24], // RIGHT_ELBOW, RIGHT_SHOULDER, RIGHT_HIP
+    display: 'Cùi chỏ phải - Vai phải - Hông phải',
   },
   {
     label: 'Góc cùi chỏ phải',
@@ -33,8 +33,8 @@ export const JOINT_ANGLE_OPTIONS = [
   // ----- BÊN TRÁI -----
   {
     label: 'Góc vai trái',
-    value: [11, 13, 23], // LEFT_SHOULDER, LEFT_ELBOW, LEFT_HIP
-    display: 'Cổ - Vai trái - Cùi chỏ trái',
+    value: [13, 11, 23], // LEFT_SHOULDER, LEFT_ELBOW, LEFT_HIP
+    display: 'Vai trái - Cùi chỏ trái - Hông trái',
   },
   {
     label: 'Góc cùi chỏ trái',

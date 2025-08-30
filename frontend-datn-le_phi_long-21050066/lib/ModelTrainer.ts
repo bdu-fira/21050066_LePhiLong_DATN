@@ -63,8 +63,8 @@ export async function trainPoseClassifier(poseData: any) {
 
   let valAcc = 0
   await model.fit(Xtr, ytr, {
-    epochs: 250,
-    batchSize: 16,
+    epochs: 500,
+    batchSize: 32,
     shuffle: true,
     validationData: [Xva, yva],
     callbacks: { onEpochEnd: (_e, logs) => { if (logs?.val_acc != null) valAcc = logs.val_acc as number; console.log(logs!.val_loss) } }

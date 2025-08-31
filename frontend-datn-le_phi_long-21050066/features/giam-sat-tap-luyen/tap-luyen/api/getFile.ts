@@ -1,10 +1,10 @@
 import axios from "axios";
 
-export async function getModels(data: any) {
+export async function getFile(data: any) {
   try {
     const path = typeof data === "string" ? data : data?.path;
     const res = await axios.get(
-      `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/exercise/getModels`,
+      `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/exercise/getFile`,
       {
         params: { path },           
         responseType: "blob",      

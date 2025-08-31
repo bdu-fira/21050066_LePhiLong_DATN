@@ -61,6 +61,8 @@ export default function FormLichtap() {
   const totalEx = days.reduce((a: any, b: any) => a + (b?.exercises || 0), 0)
 
   const hasWorkout = !!(sel && Number(sel.exercises) > 0)
+  console.log(sel)
+
 
   const groups = (() => {
     const g = sel?.groups
@@ -185,7 +187,7 @@ export default function FormLichtap() {
             ) : null}
 
             <div className="flex gap-3">
-              <Button size="lg" disabled={!hasWorkout} className="flex-1 font-bold text-lg text-white shadow bg-orange-500 hover:bg-orange-600 transition-all">
+              <Button size="lg" disabled={!hasWorkout} className="flex-1 font-bold text-lg text-white shadow bg-orange-500 hover:bg-orange-600 transition-all" onClick={() => router.push(`/tap-luyen/${sel.date}`)}>
                 <TrendingUp className="mr-2 w-6 h-6" />
                 Bắt đầu luyện tập
               </Button>

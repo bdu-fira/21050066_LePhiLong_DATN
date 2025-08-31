@@ -80,10 +80,17 @@ export class ExerciseController {
   }
 
   @UseGuards(AuthGuard([0, 1]))
-  @Get('getModels')
-  async getFiles(@Query() query: any) {
+  @Get('getFile')
+  async getFile(@Query() query: any) {
     const file = createReadStream(query.path);
     return new StreamableFile(file);
+  }
+
+  @UseGuards(AuthGuard([0, 1]))
+  @Post('saveStats')
+  async saveStats(@Body() payload: any, @Res() res: Response) {
+    const result = await this.exerciseService.saveStats(payload);
+    res.status(result.statusCode).json(result);
   }
 
 }

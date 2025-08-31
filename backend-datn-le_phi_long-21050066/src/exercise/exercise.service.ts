@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as path from 'path';
 import { Exercise } from 'src/entities/exercise.entity';
 import { Muscle } from 'src/entities/muscle.entity';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import * as fs from 'fs';
 import * as os from 'os';
 import { ExerciseLevel } from 'src/entities/exerciselevel.entity';
@@ -12,12 +12,15 @@ import { Position } from 'src/entities/position.entity';
 import { Joint } from 'src/entities/joint.entity';
 import { Schedule } from 'src/entities/schedule.entity';
 import { ScheduleDetail } from 'src/entities/scheduledetail.entity';
-import e from 'express';
 import { spawn } from 'child_process';
+import { Result } from 'src/entities/result.entity';
+import { JointList } from 'src/entities/jointList.entity';
 
 @Injectable()
 export class ExerciseService {
   constructor(
+    private readonly dataSource: DataSource,
+
     @InjectRepository(Exercise)
     private _exerciseRepository: Repository<Exercise>,
 
@@ -40,7 +43,7 @@ export class ExerciseService {
     private _scheduleDetailRepository: Repository<ScheduleDetail>,
 
     @InjectRepository(Joint)
-    private _joint: Repository<Joint>,
+    private _jointRepository: Repository<Joint>,
   ) {}
 
   async create(payload: any) {
@@ -266,7 +269,7 @@ export class ExerciseService {
         })
       });
 
-      await this._joint.save(jointList)
+      await this._jointRepository.save(jointList)
 
       const voices = 'voices';
       const dir = path.join(process.cwd(), 'uploads', 'exercise', String(id));
@@ -473,8 +476,9 @@ export class ExerciseService {
         data.push({
           id: ex.id,
           name: ex.name,
-          set: level?.set ?? null,
-          rep: level?.rep ?? null,
+          set: level?.set ?? 0,
+          rep: level?.rep ?? 0,
+          calo: (ex.calo * level!.set * level!.rep).toFixed(1),
           scheduleDetailID: d.id,
           positions,
           voicePaths: voiceFiles,
@@ -491,5 +495,68 @@ export class ExerciseService {
       return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
     }
   }
+
+  async saveStats(payload: any) {
+    try {
+      const items: any[] = Array.isArray(payload) ? payload : [];
+      if (items.length === 0) {
+        return { isSuccess: false, statusCode: 400, message: 'Thiếu dữ liệu!' };
+      }
+  
+      const resultRepo = this.dataSource.getRepository(Result);
+      const jointListRepo = this.dataSource.getRepository(JointList);
+  
+      const savedResultIDs: number[] = [];
+  
+      for (const raw of items) {
+        const scheduleDetailID = Number(raw?.scheduleDetailID);
+        const set = Number(raw?.set);
+        const rep = Number(raw?.rep);
+        const positionName = String(raw?.positionName ?? '').trim();
+        const actualAngle = Number(raw?.actualAngle);
+        const errorMessage = String(raw?.errorMessage ?? '').trim();
+  
+        const jointList: any[] = Array.isArray(raw?.jointList)
+          ? [...new Set(raw.jointList.map((x: any) => Number(x)).filter((x: number) => !isNaN(x)))]
+          : [];
+  
+        const sd = await this._scheduleDetailRepository.findOne({ where: { id: scheduleDetailID } as any });
+        if (sd) {
+          (sd as any).isTrained = 1;
+          await this._scheduleDetailRepository.save(sd);
+        }
+  
+        const saved = await resultRepo.save(
+          resultRepo.create({
+            scheduleDetailID,
+            set,
+            rep,
+            positionName,
+            actualAngle,
+            errorMessage,
+          })
+        );
+  
+        if (jointList.length > 0) {
+          await jointListRepo
+            .createQueryBuilder()
+            .insert()
+            .into(JointList)
+            .values(jointList.map((jid: number) => ({
+              id: jid,            // jointID
+              resultID: saved.id, // gắn với result vừa lưu
+            })))
+            .execute();
+        }
+  
+        savedResultIDs.push(saved.id);
+      }
+  
+      return { isSuccess: true, statusCode: 200, message: 'Lưu thành công'};
+    } catch(e: any) {
+      console.log(e)
+      return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
+    }
+  }  
   
 }

@@ -145,7 +145,7 @@ export function check(positionID: number, jointAngles: any[]): any | null {
     else if (op === "!=" || op === "<>") hit = Math.abs(angle - t) >= 1e-3;
 
     if (hit){
-      return { criteriaID: r.id, positionID: r.positionID, jointIdx, actualAngle: angle, errorMessage: r.errorMessage };
+      return { criteriaID: r.id, positionID: r.positionID, jointIdx, jointList: r.joints, actualAngle: angle, errorMessage: r.errorMessage };
     } 
   }
   return null;

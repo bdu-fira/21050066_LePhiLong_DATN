@@ -11,9 +11,6 @@ export class Result {
   scheduleDetailID: number;
 
   @Column()
-  attempt: number;
-
-  @Column()
   set: number;
 
   @Column()

@@ -19,9 +19,6 @@ export class User {
   @Column({ default: 0 })
   isAdmin: number;
 
-  @Column({ default: 0 })
-  isActivated: number;
-
   @Column({ length: 255 })
   email: string;
 

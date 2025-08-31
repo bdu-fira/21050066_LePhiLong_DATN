@@ -203,7 +203,7 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
     resetOrder();
     setWorldLms(null);
     setPredResult(null);
-    setRep(29);              // giữ nguyên: vào bài (hoặc reload bài) thì reset rep
+    setRep(0);              // giữ nguyên: vào bài (hoặc reload bài) thì reset rep
     lastPredRef.current = "";
   }, [exercises]);
 

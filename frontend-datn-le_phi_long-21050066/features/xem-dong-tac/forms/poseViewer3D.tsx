@@ -1,4 +1,3 @@
-// features/.../forms/poseViewer3D.tsx
 "use client";
 import React from "react";
 import * as THREE from "three";

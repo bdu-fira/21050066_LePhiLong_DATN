@@ -66,15 +66,17 @@ export class UserController {
 
   @UseGuards(AuthGuard([]))
   @Post('verify')
-  async verify(@Res() res: Response) {
+  async verify(@Res() res: Response, @Req() req: any) {
     const result = {
       isSuccess: true,
       statusCode: 200,
       message: 'Xác thực thành công!',
+      data: req.isAdmin
     }
     res.status(result.statusCode).json(
       result
     );
+    console.log(result)
   }
 
   @Post('create')

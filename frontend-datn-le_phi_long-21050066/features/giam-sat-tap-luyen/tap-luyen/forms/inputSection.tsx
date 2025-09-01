@@ -82,7 +82,7 @@ export default function InputSection({ onFrame, onDraw, overlayRef }: Props) {
             onDraw(overlay, result, video);
           }
 
-          await sleep(40); // "ngủ" 0.1s
+          await sleep(20);
 
           rafRef.current = requestAnimationFrame(loop);
         };

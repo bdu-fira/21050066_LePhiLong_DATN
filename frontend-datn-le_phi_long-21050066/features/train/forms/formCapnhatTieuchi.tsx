@@ -31,10 +31,9 @@ export default function FormCapnhatTieuchi({ id, positionID, evaluationCriteria 
     },
     mode: 'onChange',
   });
-
   const { fields, append, remove } = useFieldArray({ control, name: 'criteria' });
   const [msg, setMsg] = useState<string | null>(null);
-
+console.log(evaluationCriteria)
   const onSubmit = async (data: ExpertFormData) => {
     setMsg(null);
 

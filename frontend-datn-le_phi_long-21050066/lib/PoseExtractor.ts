@@ -15,7 +15,7 @@ export async function initPoseExtractor() {
       locateFile: (file: string) => `/mediapipe/pose/${file}`,
     });
     pose.setOptions({
-      modelComplexity: 1,
+      modelComplexity: 2,
       smoothLandmarks: true,
       enableSegmentation: true,
       minDetectionConfidence: 0.85,

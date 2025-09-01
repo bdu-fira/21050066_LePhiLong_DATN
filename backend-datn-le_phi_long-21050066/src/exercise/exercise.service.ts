@@ -15,6 +15,10 @@ import { ScheduleDetail } from 'src/entities/scheduledetail.entity';
 import { spawn } from 'child_process';
 import { Result } from 'src/entities/result.entity';
 import { JointList } from 'src/entities/jointList.entity';
+import { existsSync, mkdirSync } from 'fs';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+const execFileAsync = promisify(execFile);
 
 @Injectable()
 export class ExerciseService {
@@ -44,6 +48,9 @@ export class ExerciseService {
 
     @InjectRepository(Joint)
     private _jointRepository: Repository<Joint>,
+
+    @InjectRepository(Result)
+    private _resultRepository: Repository<Result>,
   ) {}
 
   async create(payload: any) {
@@ -137,6 +144,16 @@ export class ExerciseService {
           muscles: true,
           positions: { evaluationCriteria: {joints: true} },
         },
+        order:{
+          positions: {
+            order: 'ASC',
+            evaluationCriteria: {
+              joints: {
+                order: 'ASC'
+              }
+            }
+          },
+        }
       });
       if (!exercise) return { isSuccess: false, statusCode: 404, message: 'Bài tập không tồn tại!' };
       return { isSuccess: true, statusCode: 200, message: 'Tìm thành công', data: exercise };
@@ -260,14 +277,18 @@ export class ExerciseService {
       }));
       const criteriaResult = await this._evaluationCriteria.save(criteria);
       criteriaResult.forEach((c: any, index: any) => {
+        console.log(payload.criteria[index].jointAngle)
 
-        payload.criteria[index].jointAngle.map((data: any)=>{
+        payload.criteria[index].jointAngle.map((data: any, i: number)=>{
           const j = new Joint()
           j.evaluationCriteriaID = c.id
           j.id = data
+          j.order = i
           jointList.push(j)
         })
       });
+
+      console.log(jointList)
 
       await this._jointRepository.save(jointList)
 
@@ -299,6 +320,7 @@ export class ExerciseService {
   
       return { isSuccess: true, statusCode: 200, message: 'Cập nhật tiêu chí thành công' };
     } catch (e) {
+      console.log(e)
       return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
     }
   }  
@@ -335,11 +357,12 @@ export class ExerciseService {
         name: name
       }))
 
-      for (const pos of positionNames) {
+      for (const [index, pos] of positionNames.entries()) {
         const existingPos = new Position()
         existingPos.id = pos.exerciseID
         existingPos.exerciseID = id
         existingPos.name = pos.name as string
+        existingPos.order = index
         
         await this._positionRepository.save(existingPos);
       }
@@ -360,6 +383,7 @@ export class ExerciseService {
   }
 
   private async convertTextToSpeech(text: string, destWav: string): Promise<void> {
+    // Các thư mục chứa tệp pipertts
     const candidateSrcDirs = [
       path.join(process.cwd(), 'pipertts'),
       path.join(__dirname, '..', '..', 'pipertts'),
@@ -369,20 +393,21 @@ export class ExerciseService {
     if (!srcRoot) {
       throw new Error(`[TTS] Không tìm thấy thư mục 'pipertts' ở các vị trí:\n- ${candidateSrcDirs.join('\n- ')}`);
     }
-  
+
+    // Chuẩn bị các tệp cần thiết
     const work = path.join(os.tmpdir(), 'piper-work');
-    const bin   = path.join(work, process.platform === 'win32' ? 'piper.exe' : 'piper');
+    const bin = path.join(work, process.platform === 'win32' ? 'piper.exe' : 'piper');
     const model = path.join(work, 'vi_VN-vais1000-medium.onnx');
-    const cfg   = path.join(work, 'vi_VN-vais1000-medium.onnx.json');
+    const cfg = path.join(work, 'vi_VN-vais1000-medium.onnx.json');
     const esDir = path.join(work, 'espeak-ng-data');
-  
+
     // Hàm kiểm tra đủ thành phần
     const isReady = () =>
       fs.existsSync(bin) &&
       fs.existsSync(model) &&
       fs.existsSync(cfg) &&
       fs.existsSync(esDir);
-  
+
     // Nếu thiếu thì copy lại từ pipertts
     if (!isReady()) {
       try { fs.rmSync(work, { recursive: true, force: true }); } catch {}
@@ -391,14 +416,25 @@ export class ExerciseService {
         if (process.platform !== 'win32' && fs.existsSync(bin)) fs.chmodSync(bin, 0o755);
       } catch {}
     }
-  
+
     // Kiểm tra lần cuối
     if (!isReady()) {
       throw new Error(`[TTS] Không thể chuẩn bị Piper runtime trong ${work}`);
     }
-  
+
+    // Tạo tệp tạm để lưu kết quả âm thanh
     const tmpOut = path.join(work, `out-${Date.now()}-${Math.random().toString(36).slice(2)}.wav`);
-  
+
+    // Hàm xử lý văn bản trước khi truyền vào Piper
+    const processTextWithPauses = (inputText: string): string => {
+      return inputText
+        .replace(/([,\.!])/g, '$1<pause>')  // Thêm khoảng dừng sau dấu câu
+        .replace(/\<pause\>/g, '  ');  // Thay thế bằng khoảng trắng dài (hoặc ký tự khác nếu cần)
+    };
+
+    const processedText = processTextWithPauses(text);
+
+    // Gọi Piper để chuyển văn bản thành âm thanh
     await new Promise<void>((resolve, reject) => {
       const p = spawn(
         bin,
@@ -410,15 +446,16 @@ export class ExerciseService {
           windowsHide: true,
         }
       );
-  
+
       let err = '';
       p.stderr.on('data', d => { err += d.toString(); });
       p.on('error', reject);
       p.on('close', code => code === 0 ? resolve() : reject(new Error(`[TTS] Piper exit ${code}${err ? `\n${err}` : ''}`)));
-  
-      p.stdin.end(String(text ?? '').trim() + '\n', 'utf8');
+
+      p.stdin.end(processedText.trim() + '\n', 'utf8');
     });
-  
+
+    // Lưu kết quả vào tệp đích
     fs.mkdirSync(path.dirname(destWav), { recursive: true });
     fs.copyFileSync(tmpOut, destWav);
   }
@@ -430,7 +467,7 @@ export class ExerciseService {
       if (!date) return { isSuccess: false, statusCode: 400, message: 'Thiếu ngày.' };
   
       const schedule = await this._scheduleRepository.findOne({
-        where: { traineeID: userId },
+        where: { traineeID: userId, isTraining: 1 },
         relations: ['details', 'details.exercise'],
       })!;
   
@@ -498,15 +535,42 @@ export class ExerciseService {
 
   async saveStats(payload: any) {
     try {
-      const items: any[] = Array.isArray(payload) ? payload : [];
+      const items: any[] = Array.isArray(payload.errors) ? payload.errors : [];
       if (items.length === 0) {
         return { isSuccess: false, statusCode: 400, message: 'Thiếu dữ liệu!' };
       }
   
       const resultRepo = this.dataSource.getRepository(Result);
       const jointListRepo = this.dataSource.getRepository(JointList);
+
   
       const savedResultIDs: number[] = [];
+
+      const scheduleDetailList = await this._scheduleDetailRepository.find(
+        { 
+          where: { 
+            schedule: {
+              traineeID: payload.userID,
+              isTraining: 1,
+            },
+            date: payload.date,
+          },
+          relations: {
+            results: true,
+          }
+        }
+      );
+
+      console.log(scheduleDetailList)
+      
+      for (const scheduleDetail of scheduleDetailList){
+          //Đánh dấu là đã tập
+          scheduleDetail.isTrained = 1;
+          await this._scheduleDetailRepository.save(scheduleDetail);
+
+          // Xóa tất cả các result trước đó
+          await this._resultRepository.remove(scheduleDetail.results)
+      }
   
       for (const raw of items) {
         const scheduleDetailID = Number(raw?.scheduleDetailID);
@@ -519,12 +583,6 @@ export class ExerciseService {
         const jointList: any[] = Array.isArray(raw?.jointList)
           ? [...new Set(raw.jointList.map((x: any) => Number(x)).filter((x: number) => !isNaN(x)))]
           : [];
-  
-        const sd = await this._scheduleDetailRepository.findOne({ where: { id: scheduleDetailID } as any });
-        if (sd) {
-          (sd as any).isTrained = 1;
-          await this._scheduleDetailRepository.save(sd);
-        }
   
         const saved = await resultRepo.save(
           resultRepo.create({
@@ -542,9 +600,10 @@ export class ExerciseService {
             .createQueryBuilder()
             .insert()
             .into(JointList)
-            .values(jointList.map((jid: number) => ({
+            .values(jointList.map((jid: number, index: number) => ({
               id: jid,            // jointID
               resultID: saved.id, // gắn với result vừa lưu
+              order: index
             })))
             .execute();
         }
@@ -558,5 +617,55 @@ export class ExerciseService {
       return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
     }
   }  
+
+  async getExamples() {
+    try {
+      // Lấy nhẹ nhàng đủ thông tin
+      const rows = await this._exerciseRepository.find({
+        select: ['id', 'name'],
+      });
+
+      const data = (rows || []).map((x: any) => ({
+        id: x.id,
+        name: x.name,
+        path: path.join(process.cwd(), 'uploads', 'exercise', String(x.id), 'instruction.fbx'),
+      }));
+
+      return { isSuccess: true, statusCode: 200, message: 'Thành công', data };
+    } catch {
+      return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
+    }
+  }
+
+  async ensureGlb(originalPath: string): Promise<string> {
+    try {
+      if (!originalPath) throw new Error('path required');
+
+      const ext = path.extname(originalPath).toLowerCase();
+      if (ext === '.glb' || ext === '.gltf') return originalPath;
+
+      if (ext !== '.fbx') return originalPath;
+
+      const dir = path.dirname(originalPath);
+      const glbPath = path.join(dir, 'instruction.glb');
+
+      if (existsSync(glbPath)) return glbPath;
+
+      // Đảm bảo thư mục tồn tại
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+
+      // Gọi binary fbx2gltf (cài: npm i fbx2gltf)
+      const bin = process.env.FBX2GLTF_BIN || 'fbx2gltf';
+      // -b: xuất binary .glb ; -o: đường dẫn file output
+      await execFileAsync(bin, ['-b', originalPath, '-o', glbPath], {
+        cwd: process.cwd(),
+      });
+
+      return glbPath;
+    } catch (e) {
+      // Giữ style đơn giản như các hàm khác của bạn
+      return originalPath;
+    }
+  }
   
 }

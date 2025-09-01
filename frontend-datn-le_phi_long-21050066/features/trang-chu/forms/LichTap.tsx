@@ -101,7 +101,7 @@ export default function FormLichtap() {
 
   if (!s.loading && !has) {
     return (
-      <div className="min-h-screen">
+      <div className="mx-auto">
         <div className="mx-auto flex flex-col gap-8 px-6 py-16 items-start max-w-4xl w-full">
           <div className="bg-white shadow-lg border rounded-2xl p-10 w-full text-center">
             <div className="mx-auto mb-4 flex items-center justify-center w-12 h-12 rounded-full bg-muted">
@@ -120,10 +120,10 @@ export default function FormLichtap() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div>
       <div className="mx-auto flex flex-col gap-8 px-6 py-10 items-start">
-        <div className="flex-[1.1] min-w-[380px] max-w-[800px]">
-          <div className="bg-white shadow-lg border rounded-2xl p-8 w-full space-y-7">
+        <div className="min-w-[380px] max-w-[800px] mx-auto">
+          <div className="mx-auto bg-white shadow-lg border rounded-2xl p-8 w-full space-y-7">
             <div className="flex items-center justify-between mb-4">
               <Button variant="ghost" onClick={prev} disabled={s.weekIdx <= 0 || !has}><ChevronLeft /></Button>
               <div className="flex items-center gap-2">

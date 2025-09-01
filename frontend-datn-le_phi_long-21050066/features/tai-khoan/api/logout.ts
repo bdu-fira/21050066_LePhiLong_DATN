@@ -14,7 +14,7 @@ export async function logout() {
       }
     );
     localStorage.clear()
-    window.location.replace('dang-nhap')
+    window.location.replace('/dang-nhap')
   } catch (error: any) {
     console.log(error)
   }

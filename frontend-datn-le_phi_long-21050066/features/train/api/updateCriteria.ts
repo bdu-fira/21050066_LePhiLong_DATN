@@ -3,6 +3,7 @@ import axios from 'axios';
 
 export async function updateCriteria(payload: any) {
   try {
+    console.log(payload)
     const res = await axios.patch(
       `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/exercise/updateCriteria`,
       payload,

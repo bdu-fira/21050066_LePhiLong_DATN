@@ -87,9 +87,16 @@ export class ExerciseController {
   }
 
   @UseGuards(AuthGuard([0, 1]))
+  @Get('getExamples')
+  async getExamples(@Body() payload: any, @Req() req: any, @Res() res: Response) {
+    const result = await this.exerciseService.getExamples();
+    res.status(result.statusCode).json(result);
+  }
+
+  @UseGuards(AuthGuard([0, 1]))
   @Post('saveStats')
-  async saveStats(@Body() payload: any, @Res() res: Response) {
-    const result = await this.exerciseService.saveStats(payload);
+  async saveStats(@Body() payload: any,@Req() req: any, @Res() res: Response) {
+    const result = await this.exerciseService.saveStats({date:payload.date, errors: payload.errors, userID: req.userID});
     res.status(result.statusCode).json(result);
   }
 

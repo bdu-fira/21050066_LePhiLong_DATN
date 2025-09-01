@@ -13,6 +13,9 @@ export class Position {
   @Column({ length: 255, nullable: true })
   name: string;
 
+  @Column()
+  order: number;
+
   @ManyToOne(() => Exercise, (exercise) => exercise.positions)
   @JoinColumn({ name: 'exerciseID', referencedColumnName: 'id' })
   exercise: Exercise;

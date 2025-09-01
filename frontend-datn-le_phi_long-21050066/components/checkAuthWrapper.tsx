@@ -1,9 +1,11 @@
+// pages/CheckAuthWrapper.tsx
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
-export default function CheckAuthWrapper({ children }: any) {
+export default function CheckAuthWrapper({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [isChecking, setIsChecking] = useState<boolean>(true);
 
   useEffect(() => {
@@ -18,12 +20,23 @@ export default function CheckAuthWrapper({ children }: any) {
       }
     )
     .then((res) => {
-      setIsChecking(false)
+      const isAdmin = res.data.data === 1;
+      const isAdminPath = pathname.startsWith('/admin');
+
+      if (isAdmin && !isAdminPath) {
+        router.replace('/admin/dashboard');
+      } 
+      else if (!isAdmin && isAdminPath) {
+        console.log(isAdmin, isAdminPath)
+        router.replace('/');
+      } 
+      setIsChecking(false);
+      
     })
-    .catch((err) => {
+    .catch(() => {
       router.replace('/dang-nhap');
     });
-  }, [router]);
-
+  }, [router, pathname]);
+  
   return !isChecking && children;
 }

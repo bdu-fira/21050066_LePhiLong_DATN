@@ -64,8 +64,7 @@ export default function MainLayout({
             </div>
             <nav className="flex items-center gap-6 text-sm absolute left-[50%] translate-x-[-50%]">
               <a href="/" className="flex gap-2 font-medium transition-colors hover:text-primary/80 whitespace-nowrap"><Home className="w-5 h-5" /> Trang chủ</a>
-              <a href="#" className="flex gap-2 font-medium transition-colors hover:text-primary/80 whitespace-nowrap"><PlaySquare className="w-5 h-5" />Xem động tác</a>
-              <a href="#" className="flex gap-2 font-medium transition-colors hover:text-primary/80 whitespace-nowrap"><BarChart3 className="w-5 h-5" />Phân tích</a>
+              <a href="/xem-dong-tac" className="flex gap-2 font-medium transition-colors hover:text-primary/80 whitespace-nowrap"><PlaySquare className="w-5 h-5" />Xem động tác</a>
             </nav>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

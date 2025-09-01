@@ -5,12 +5,12 @@ import HeaderPageTapLuyen from "@/features/giam-sat-tap-luyen/tap-luyen/forms/he
 import FooterPageTapLuyen from "@/features/giam-sat-tap-luyen/tap-luyen/forms/footer";
 import InputSection from "@/features/giam-sat-tap-luyen/tap-luyen/forms/inputSection";
 import MonitorSection from "@/features/giam-sat-tap-luyen/tap-luyen/forms/monitorSection";
-import PoseViewer3D from "@/features/giam-sat-tap-luyen/tap-luyen/forms/poseViewer3D";
+import PoseViewer3D from "@/features/xem-dong-tac/forms/poseViewer3D";
 import RestOverlay from "@/features/giam-sat-tap-luyen/tap-luyen/forms/restOverlay";
 import ErrorOverlay from "@/features/giam-sat-tap-luyen/tap-luyen/forms/errorOverlay";
 
 import { getExercise } from "../api/getExercise";
-import { getFile } from "../api/getFile";
+import { getFile } from "../../../xem-dong-tac/api/getFile";
 import { initPoseExtractor, extractFromVideo, drawPose } from "@/lib/PoseExtractor";
 import PoseCls from "@/lib/PoseClassification";
 import ExpertTrainer, { calculateJoints, check, feedOrder, resetOrder, speak } from "@/lib/ExpertTrainer";
@@ -199,11 +199,12 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
     setCurrentIndex(index);
 
     try { if (ex?._modelJson && ex?._weightBin) await PoseCls.load(ex._modelJson, ex._weightBin); } catch {}
+    console.log(ex.rules)
     ExpertTrainer.loadData(ex.rules, ex.voices)
     resetOrder();
     setWorldLms(null);
     setPredResult(null);
-    setRep(0);              // giữ nguyên: vào bài (hoặc reload bài) thì reset rep
+    setRep(29);              // giữ nguyên: vào bài (hoặc reload bài) thì reset rep
     lastPredRef.current = "";
   }, [exercises]);
 
@@ -275,7 +276,11 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
   }, [predResult, worldLms])
 
   const endWorkout = async () => {
-    await saveStats(errors)
+    const statsData = {
+      date: props!.date,
+      errors: errors
+    }
+    await saveStats(statsData)
     setOpenSummary(true);
   };
 

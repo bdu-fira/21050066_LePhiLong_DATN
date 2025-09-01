@@ -20,7 +20,6 @@ export class ScheduleController {
   @UseGuards(AuthGuard([0, 1]))
   @Post('create')
   async createWeeklySchedule(@Req() req: any, @Res() res: Response, @Body() payload: any) {
-    console.log(payload);
     const result = await this.scheduleService.createWeeklySchedule({ userId: req.userID, body: payload });
     res.status(result.statusCode).json(result);
   }
@@ -43,6 +42,20 @@ export class ScheduleController {
       userId: req.userID,
       userRole: req.userRole,
     });
+    res.status(result.statusCode).json(result);
+  }
+
+  @UseGuards(AuthGuard([0, 1]))
+  @Get('getStats')
+  async getStats(@Req() req: any, @Res() res: Response) {
+    const result = await this.scheduleService.getStats({ userId: req.userID });
+    res.status(result.statusCode).json(result);
+  }
+
+  @UseGuards(AuthGuard([0, 1]))
+  @Get('getAnalytics')
+  async getAnalytics(@Req() req: any, @Res() res: Response) {
+    const result = await this.scheduleService.getAnalytics({ userId: req.userID });
     res.status(result.statusCode).json(result);
   }
 

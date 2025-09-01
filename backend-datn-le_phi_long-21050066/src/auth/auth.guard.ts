@@ -42,12 +42,15 @@ export function AuthGuard(roles: number[]) {
         }
 
         const user = await this._jwtService.decode(refresh_token);
+
         if(roles.length > 0){
           if (!user && !roles.includes(user.isAdmin)) {
             return false; 
           }
         }
+        
         request.userID = user.id
+        request.isAdmin = user.isAdmin
         return true;
       } catch(e){
         console.log(e)

@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Schedule } from 'src/entities/schedule.entity';
 import { ScheduleDetail } from 'src/entities/scheduledetail.entity';
 import { Exercise } from 'src/entities/exercise.entity';
 import { Muscle } from 'src/entities/muscle.entity';
 import { ExerciseLevel } from 'src/entities/exerciselevel.entity';
 import { Trainee } from 'src/entities/trainee.entity';
+import { Result } from 'src/entities/result.entity';
 
 
 @Injectable()
@@ -18,6 +19,7 @@ export class ScheduleService {
     @InjectRepository(ExerciseLevel) private levelRepo: Repository<ExerciseLevel>,
     @InjectRepository(Muscle) private muscleRepo: Repository<Muscle>,
     @InjectRepository(Trainee) private traineeRepo: Repository<Trainee>,
+    @InjectRepository(Result) private resultRepo: Repository<Result>,
 
   ) {}
 
@@ -308,4 +310,298 @@ export class ScheduleService {
       return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
     }
   }  
+
+  async getStats(payload: any) {
+    try {
+      const traineeID = Number(payload?.userId) || 0;
+  
+      const schedules = await this.scheduleRepo.find({ where: { traineeID, isTraining: 1 } });
+      if (!schedules.length) {
+        return {
+          statusCode: 200,
+          data: {
+            summary: { progressText: '0/0', trainedExercises: 0, totalExercises: 0, calories: 0, wrongActions: 0 },
+            days: [],
+          },
+        };
+      }
+      const scheduleIDs = schedules.map((s) => s.id);
+  
+      const rows = await this.scheduleDetailRepo
+        .createQueryBuilder('d')
+        .leftJoin(Exercise, 'e', 'e.id = d.exerciseID')
+        .leftJoin(Result,   'r', 'r.scheduleDetailID = d.id') 
+        .where('d.scheduleID IN (:...ids)', { ids: scheduleIDs })
+        .select([
+          'd.id           AS id',
+          'd.date         AS date',
+          'd.set          AS setCount',
+          'd.rep          AS repCount',
+          'd.isTrained    AS isTrained',
+          'e.calo         AS calo',
+          'COUNT(r.id)    AS wrong',
+        ])
+        .groupBy('d.id')
+        .addGroupBy('d.date')
+        .addGroupBy('d.set')
+        .addGroupBy('d.rep')
+        .addGroupBy('d.isTrained')
+        .addGroupBy('e.calo')
+        .orderBy('d.date', 'ASC')
+        .getRawMany();
+  
+      if (!rows.length) {
+        return {
+          statusCode: 200,
+          data: {
+            summary: { progressText: '0/0', trainedExercises: 0, totalExercises: 0, calories: 0, wrongActions: 0 },
+            days: [],
+          },
+        };
+      }
+  
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const toYMD = (input: any) => {
+        if (!input) return { y: 0, m: 0, d: 0 };
+        if (typeof input === 'string') {
+          const m = input.match(/^(\d{4})-(\d{2})-(\d{2})/);
+          if (m) return { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) };
+          const dt = new Date(input);
+          return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() };
+        }
+        const dt = input instanceof Date ? input : new Date(input);
+        return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() };
+      };
+      const toDateKey = (v: any) => {
+        const { y, m, d } = toYMD(v);
+        return `${y}-${pad(m)}-${pad(d)}`;
+      };
+      const toLabel = (v: any) => {
+        const { m, d } = toYMD(v);
+        return `${pad(d)}/${pad(m)}`;
+      };
+      const to01 = (v: any) => {
+        if (Buffer.isBuffer(v)) return v.length && v[0] ? 1 : 0;
+        if (typeof v === 'boolean') return v ? 1 : 0;
+        const n = Number(v);
+        return Number.isFinite(n) ? (n === 0 ? 0 : 1) : 0;
+      };
+  
+      const dayMap: Record<string, any> = {};
+      let totalExercises = 0;
+      let trainedExercises = 0;
+      let totalCalories = 0;
+      let totalWrong = 0;
+  
+      for (const r of rows) {
+        const dateKey = toDateKey(r.date);
+        if (!dayMap[dateKey]) {
+          dayMap[dateKey] = {
+            date: dateKey,
+            label: toLabel(r.date),
+            exercises: 0,
+            trained: 0,
+            calories: 0,
+            wrongActions: 0,
+          };
+        }
+  
+        dayMap[dateKey].exercises += 1;
+        totalExercises += 1;
+  
+        const isTrained = to01(r.isTrained);
+        const wrong = Number(r.wrong) || 0;
+  
+        if (isTrained === 1) {
+          dayMap[dateKey].trained += 1;
+          trainedExercises += 1;
+  
+          const burned =
+            (Number(r.setCount) || 0) *
+            (Number(r.repCount) || 0) *
+            (Number(r.calo) || 0);
+          dayMap[dateKey].calories += burned;
+          totalCalories += burned;
+        }
+  
+        dayMap[dateKey].wrongActions += wrong;
+        totalWrong += wrong;
+      }
+  
+      return {
+        statusCode: 200,
+        data: {
+          summary: {
+            progressText: `${trainedExercises}/${totalExercises}`,
+            trainedExercises,
+            totalExercises,
+            calories: totalCalories,
+            wrongActions: totalWrong,
+          },
+        },
+      };
+    } catch (e) {
+      return { statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
+    }
+  }  
+
+  async getAnalytics(payload: any) {
+    try {
+      const traineeID = Number(payload?.userId) || 0;
+  
+      // 1) Chỉ lấy schedule active
+      const schedules = await this.scheduleRepo.find({
+        where: { traineeID, isTraining: 1 },
+        select: ['id'],
+      });
+      if (!schedules.length) {
+        return {
+          statusCode: 200,
+          data: {
+            summary: {
+              totalWrong: 0,
+              stage: {
+                early: { count: 0, percent: 0 },
+                mid:   { count: 0, percent: 0 },
+                late:  { count: 0, percent: 0 },
+              },
+            },
+            topExercises: [],
+          },
+        };
+      }
+      const scheduleIDs = schedules.map(s => s.id);
+
+      console.log(scheduleIDs)
+  
+      // 2) Lấy CHỈ các detail đã tập (isTrained = 1) + thông tin bài/rep tổng
+      const details = await this.scheduleDetailRepo
+        .createQueryBuilder('d')
+        .leftJoin(Exercise, 'e', 'e.id = d.exerciseID')
+        .where('d.scheduleID IN (:...ids)', { ids: scheduleIDs })
+        .andWhere('d.isTrained = :one', { one: 1 })
+        .select([
+          'd.id        AS id',
+          'd.rep       AS totalRep',
+          'e.id        AS exerciseID',
+          'e.name      AS exerciseName',
+        ])
+        .getRawMany();
+  
+      if (!details.length) {
+        return {
+          statusCode: 200,
+          data: {
+            summary: {
+              totalWrong: 0,
+              stage: {
+                early: { count: 0, percent: 0 },
+                mid:   { count: 0, percent: 0 },
+                late:  { count: 0, percent: 0 },
+              },
+            },
+            topExercises: [],
+          },
+        };
+      }
+  
+      const detailIDs = details.map((d: any) => Number(d.id));
+      const detailMap: Record<number, { totalRep: number; exerciseID: number; exerciseName: string }> = {};
+      for (const d of details) {
+        detailMap[Number(d.id)] = {
+          totalRep: Number(d.totalRep) || 0,
+          exerciseID: Number(d.exerciseID) || 0,
+          exerciseName: String(d.exerciseName || 'Bài tập'),
+        };
+      }
+
+
+  
+      // 3) Lấy toàn bộ lỗi thuộc các detail đã tập (raw SQL, không phụ thuộc Entity Result)
+      const placeholders = detailIDs.map(() => '?').join(',');
+      const sql = `
+        SELECT scheduleDetailID AS id, rep AS wrongRep
+        FROM result
+        WHERE scheduleDetailID IN (${placeholders})
+      `;
+      const wrongRows: any = await this.scheduleDetailRepo.query(sql, detailIDs);
+
+      console.log(wrongRows)
+
+  
+      if (!wrongRows.length) {
+        return {
+          statusCode: 200,
+          data: {
+            summary: {
+              totalWrong: 0,
+              stage: {
+                early: { count: 0, percent: 0 },
+                mid:   { count: 0, percent: 0 },
+                late:  { count: 0, percent: 0 },
+              },
+            },
+            topExercises: [],
+          },
+        };
+      }
+  
+      // 4) Phân đoạn early/mid/late & top bài tập
+      type StageKey = 'early' | 'mid' | 'late';
+      const stageCount: Record<StageKey, number> = { early: 0, mid: 0, late: 0 };
+      const exMap: Record<number, { exerciseID: number; exerciseName: string; wrongCount: number }> = {};
+  
+      const pickStage = (wrongRep: number, totalRep: number): StageKey => {
+        const wr = Number(wrongRep) || 0;
+        const tr = Number(totalRep) || 0;
+        if (tr <= 0 || wr <= 0) return 'mid';
+        const ratio = wr / tr;
+        if (ratio <= 0.20) return 'early';
+        if (ratio >= 0.80) return 'late';
+        return 'mid';
+      };
+  
+      for (const row of wrongRows) {
+        const id = Number(row.id);
+        const meta = detailMap[id];
+        if (!meta) continue; // chỉ tính những detail isTrained=1
+  
+        // phân đoạn
+        const stage = pickStage(Number(row.wrongRep), meta.totalRep);
+        stageCount[stage] += 1;
+  
+        // top bài tập
+        const exID = meta.exerciseID;
+        const exName = meta.exerciseName;
+        if (!exMap[exID]) exMap[exID] = { exerciseID: exID, exerciseName: exName, wrongCount: 0 };
+        exMap[exID].wrongCount += 1;
+      }
+  
+      const totalWrong = stageCount.early + stageCount.mid + stageCount.late;
+      const percent = (n: number) => (totalWrong ? Math.round((n * 10000) / totalWrong) / 100 : 0);
+  
+      const topExercises = Object.values(exMap)
+        .sort((a, b) => (b.wrongCount - a.wrongCount) || (a.exerciseID - b.exerciseID))
+        .slice(0, 5);
+  
+      return {
+        statusCode: 200,
+        data: {
+          summary: {
+            totalWrong,
+            stage: {
+              early: { count: stageCount.early, percent: percent(stageCount.early) },
+              mid:   { count: stageCount.mid,   percent: percent(stageCount.mid) },
+              late:  { count: stageCount.late,  percent: percent(stageCount.late) },
+            },
+          },
+          topExercises, // [{ exerciseID, exerciseName, wrongCount }]
+        },
+      };
+    } catch (e) {
+      return { statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
+    }
+  }
+  
+  
 }

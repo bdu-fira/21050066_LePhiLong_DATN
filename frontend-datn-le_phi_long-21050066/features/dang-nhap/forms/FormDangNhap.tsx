@@ -16,6 +16,15 @@ const FormDangNhap = () => {
         formState: { errors, isSubmitting },
     } = useForm<TDangnhap>({ resolver: zodResolver(DangnhapSchema) })
 
+    const redirectToHomePage = () => {
+        window.location.replace('/')
+    }
+
+    const redirectToAdminPage = () => {
+        window.location.replace('/admin/dashboard')
+    }
+
+
     const onSubmit: SubmitHandler<TDangnhap> = async (data) => {
         setServerMessage('')
         try {
@@ -32,7 +41,10 @@ const FormDangNhap = () => {
             if (res.data?.isSuccess) {
                 const userObj = JSON.stringify(res.data.data.user)
                 localStorage.setItem('user', userObj);
-                window.location.replace('/')
+                if(res.data.data.user.isAdmin === 0)
+                    redirectToHomePage()
+                else
+                    redirectToAdminPage()
             } else {
                 setServerMessage(res.data?.message || 'Đăng nhập thất bại!')
             }

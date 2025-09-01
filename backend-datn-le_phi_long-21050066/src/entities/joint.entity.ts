@@ -9,6 +9,9 @@ export class Joint {
   @PrimaryColumn()
   evaluationCriteriaID: number;
 
+  @Column()
+  order: number;
+
   @ManyToOne(() => EvaluationCriteria, (ec) => ec.joints)
   @JoinColumn({ name: 'evaluationCriteriaID', referencedColumnName: 'id' })
   evaluationCriteria: EvaluationCriteria;

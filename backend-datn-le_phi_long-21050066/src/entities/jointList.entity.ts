@@ -9,6 +9,9 @@ export class JointList {
   @PrimaryColumn()
   resultID: number;
 
+  @Column()
+  order: number;
+
   @ManyToOne(() => Result, (result) => result.jointLists)
   @JoinColumn({ name: 'resultID', referencedColumnName: 'id' })
   result: Result;

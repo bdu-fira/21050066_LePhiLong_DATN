@@ -38,6 +38,8 @@ const FormDangNhap = () => {
                     withCredentials: true,
                 }
             )
+            console.log(res.data)
+
             if (res.data?.isSuccess) {
                 const userObj = JSON.stringify(res.data.data.user)
                 localStorage.setItem('user', userObj);
@@ -49,6 +51,7 @@ const FormDangNhap = () => {
                 setServerMessage(res.data?.message || 'Đăng nhập thất bại!')
             }
         } catch (error: any) {
+            console.error(error.message)
             setServerMessage(
                 error?.response?.data?.message || 'Đăng nhập thất bại!'
             )

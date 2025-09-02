@@ -6,6 +6,7 @@ import { Muscle } from 'src/entities/muscle.entity';
 import { DataSource, Repository } from 'typeorm';
 import * as fs from 'fs';
 import * as os from 'os';
+import { existsSync, promises as fsp } from 'fs';
 import { ExerciseLevel } from 'src/entities/exerciselevel.entity';
 import { EvaluationCriteria } from 'src/entities/evaluationcriteria.entity';
 import { Position } from 'src/entities/position.entity';
@@ -15,7 +16,6 @@ import { ScheduleDetail } from 'src/entities/scheduledetail.entity';
 import { spawn } from 'child_process';
 import { Result } from 'src/entities/result.entity';
 import { JointList } from 'src/entities/jointList.entity';
-import { existsSync, mkdirSync } from 'fs';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 const execFileAsync = promisify(execFile);
@@ -634,37 +634,6 @@ export class ExerciseService {
       return { isSuccess: true, statusCode: 200, message: 'Thành công', data };
     } catch {
       return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
-    }
-  }
-
-  async ensureGlb(originalPath: string): Promise<string> {
-    try {
-      if (!originalPath) throw new Error('path required');
-
-      const ext = path.extname(originalPath).toLowerCase();
-      if (ext === '.glb' || ext === '.gltf') return originalPath;
-
-      if (ext !== '.fbx') return originalPath;
-
-      const dir = path.dirname(originalPath);
-      const glbPath = path.join(dir, 'instruction.glb');
-
-      if (existsSync(glbPath)) return glbPath;
-
-      // Đảm bảo thư mục tồn tại
-      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-
-      // Gọi binary fbx2gltf (cài: npm i fbx2gltf)
-      const bin = process.env.FBX2GLTF_BIN || 'fbx2gltf';
-      // -b: xuất binary .glb ; -o: đường dẫn file output
-      await execFileAsync(bin, ['-b', originalPath, '-o', glbPath], {
-        cwd: process.cwd(),
-      });
-
-      return glbPath;
-    } catch (e) {
-      // Giữ style đơn giản như các hàm khác của bạn
-      return originalPath;
     }
   }
   

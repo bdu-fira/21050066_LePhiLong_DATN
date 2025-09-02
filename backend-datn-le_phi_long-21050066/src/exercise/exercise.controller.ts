@@ -88,7 +88,7 @@ export class ExerciseController {
 
   @UseGuards(AuthGuard([0, 1]))
   @Get('getExamples')
-  async getExamples(@Body() payload: any, @Req() req: any, @Res() res: Response) {
+  async getExamples(@Res() res: Response) {
     const result = await this.exerciseService.getExamples();
     res.status(result.statusCode).json(result);
   }

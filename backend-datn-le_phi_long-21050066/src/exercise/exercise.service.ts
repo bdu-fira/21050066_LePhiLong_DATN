@@ -54,6 +54,7 @@ export class ExerciseService {
   ) {}
 
   async create(payload: any) {
+    console.log(payload)
     try {
       const name = String(payload?.name ?? '').trim();
       const minAge = Number(payload?.minAge);
@@ -88,9 +89,9 @@ export class ExerciseService {
 
       await this._positionRepository.save(
         [
-          { exerciseID: saved.id, name: 'Label 01' },
-          { exerciseID: saved.id, name: 'Label 02' },
-          { exerciseID: saved.id, name: 'Label 03' },
+          { exerciseID: saved.id, name: 'Label 01', order: 0, },
+          { exerciseID: saved.id, name: 'Label 02', order: 1, },
+          { exerciseID: saved.id, name: 'Label 03', order: 2, },
         ],
       )
   
@@ -101,6 +102,7 @@ export class ExerciseService {
         data: { id: saved.id, name: saved.name, minAge: saved.minAge, maxAge: saved.maxAge, calo: saved.calo },
       };
     } catch (e) {
+      console.log(e)
       return { isSuccess: false, statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
     }
   }

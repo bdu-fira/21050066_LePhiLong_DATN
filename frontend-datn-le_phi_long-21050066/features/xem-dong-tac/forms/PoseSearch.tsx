@@ -1,131 +1,88 @@
 "use client";
 
 import React from "react";
+import PoseViewerAR from "./PoseViewerAR";
 import PoseViewer3D from "./poseViewer3D";
-import PoseViewerAR from "./poseViewerAR";
 import { getExamples } from "../api/getExamples";
 import { getFile } from "../api/getFile";
 
 type Tab = "3D" | "AR";
-type ARFormat = "fbx" | "gltf";
 
 export default function PoseSearch() {
   const [items, setItems] = React.useState<any[]>([]);
   const [q, setQ] = React.useState("");
   const [selected, setSelected] = React.useState<any | null>(null);
+  const [tab, setTab] = React.useState<Tab>("AR");
 
-  // Nguồn cho viewer 3D (hiện vẫn FBX – giữ nguyên viewer 3D)
+  // 3D
   const [src3D, setSrc3D] = React.useState<string | null>(null);
-
-  // Nguồn + định dạng cho AR
-  const [srcAR, setSrcAR] = React.useState<string | null>(null);
-  const [arFormat, setArFormat] = React.useState<ARFormat>("fbx");
-  const [arGltfBase, setArGltfBase] = React.useState<string | null>(null);
-
-  const [tab, setTab] = React.useState<Tab>("3D");
   const [loading3D, setLoading3D] = React.useState(false);
-  const [arSessionKey, setArSessionKey] = React.useState(0); // remount AR mỗi lần mở
-
   const urlRef3D = React.useRef<string | null>(null);
-  const urlRefAR = React.useRef<string | null>(null);
 
-  // Load danh sách bài tập
+  // AR
+  const [arPath, setArPath] = React.useState<string | null>(null);
+
+  // detect mobile (set on client to tránh mismatch SSR)
+  const [isMobile, setIsMobile] = React.useState(false);
+  React.useEffect(() => {
+    setIsMobile(/Android|iPhone|iPad|iPod|Mobi/i.test(navigator.userAgent));
+  }, []);
+
+  // fetch danh sách
   React.useEffect(() => {
     let mounted = true;
     (async () => {
       const res = await getExamples();
       if (mounted && res?.isSuccess) setItems(res.data || []);
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
-  // Cleanup blob URL khi unmount
+  // cleanup 3D url
   React.useEffect(() => {
-    return () => {
-      if (urlRef3D.current) URL.revokeObjectURL(urlRef3D.current);
-      if (urlRefAR.current) URL.revokeObjectURL(urlRefAR.current);
-    };
+    return () => { if (urlRef3D.current) URL.revokeObjectURL(urlRef3D.current); };
   }, []);
 
-  // Mở một bài tập để xem 3D (FBX như hiện trạng)
-  const onOpen = async (item: any) => {
+  const load3D = React.useCallback(async (path: string) => {
     try {
       setLoading3D(true);
-      setSelected(item);
-      setTab("3D");
+      const resp = await getFile({ path });
+      const blob =
+        resp instanceof Blob
+          ? resp
+          : (resp as any)?.data instanceof Blob
+          ? (resp as any).data
+          : typeof (resp as any)?.blob === "function"
+          ? await (resp as any).blob()
+          : null;
 
-      // reset AR nguồn khi đổi bài tập
-      setSrcAR(null);
-      setArGltfBase(null);
-      if (urlRefAR.current) {
-        URL.revokeObjectURL(urlRefAR.current);
-        urlRefAR.current = null;
-      }
-
-      // Giữ nguyên: ưu tiên lấy FBX từ backend để xem 3D
-      const blob = await getFile({ path: item.path });
-      if (blob instanceof Blob) {
-        if (urlRef3D.current) URL.revokeObjectURL(urlRef3D.current);
-        const url = URL.createObjectURL(blob);
-        urlRef3D.current = url;
-        setSrc3D(url);
-      } else {
-        setSrc3D(null);
-      }
+      if (!blob) { setSrc3D(null); return; }
+      if (urlRef3D.current) URL.revokeObjectURL(urlRef3D.current);
+      const url = URL.createObjectURL(blob);
+      urlRef3D.current = url;
+      setSrc3D(url);
     } finally {
       setLoading3D(false);
     }
+  }, []);
+
+  // chọn item
+  const onOpen = (item: any) => {
+    setSelected(item);
+    if (tab === "AR") {
+      setArPath(item?.path || null);
+    } else if (item?.path) {
+      load3D(item.path);
+    }
   };
 
-  // Vào AR: ưu tiên GLTF (instruction.gltf + .bin), nếu không có thì fallback FBX (dùng blob sẵn có)
-  const enterAR = async () => {
-    if (!selected) return;
-
-    const API = process.env.NEXT_PUBLIC_BACKEND_API_URL!;
-    const uploadsBase = `/uploads/exercise/${selected.id}/`; // <- id của bài tập
-        // Chuẩn hoá path → xác định thư mục chứa file
-    const original = String(selected.path || "");
-    const normalized = original.replace(/\\/g, "/");
-    const baseDir = normalized.replace(/\/[^/]*$/, "/"); // bỏ tên file, giữ dấu '/'
-
-    // Thử GLTF: /exercise/getFile?path=<baseDir>/instruction.gltf
-    const gltfPath = `${baseDir}instruction.gltf`;
-    const gltfUrl = `${API}/exercise/getFile?path=${encodeURIComponent(uploadsBase + "instruction.gltf")}`;
-    let hasGLTF = false;
-    try {
-      const resp = await fetch(gltfUrl, { method: "HEAD", credentials: "include", cache: "no-store" });
-      hasGLTF = resp.ok;
-      if (!hasGLTF) {
-        const r2 = await fetch(gltfUrl, { method: "GET", credentials: "include", cache: "no-store" });
-        hasGLTF = r2.ok;
-      }
-    } catch {
-      hasGLTF = false;
-    }
-
-    if (hasGLTF) {
-      // Dùng GLTF + chỉ cho loader biết base để tải .bin/texture
-      setArFormat("gltf");
-      setSrcAR(gltfUrl);
-      setArGltfBase(uploadsBase); // đổi state tên thành gltfUploadsBase nếu bạn đang lưu
-      setArSessionKey((k) => k + 1);
-      setTab("AR");
-      return;
-    }
-
-    // Không có GLTF → fallback FBX: dùng blob 3D
-    if (!src3D) return; // chưa có gì để hiển thị
-    setArFormat("fbx");
-    if (urlRefAR.current) URL.revokeObjectURL(urlRefAR.current);
-    const reuse = src3D;
-    urlRefAR.current = reuse;
-    setSrcAR(reuse);
-    setArGltfBase(null);
-
-    setArSessionKey((k) => k + 1);
+  const switchTo3D = () => {
+    setTab("3D");
+    if (selected?.path) load3D(selected.path);
+  };
+  const switchToAR = () => {
     setTab("AR");
+    setArPath(selected?.path || null);
   };
 
   const filtered = items.filter((x) =>
@@ -135,7 +92,7 @@ export default function PoseSearch() {
   return (
     <div className="flex flex-col gap-4 w-full">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        {/* Danh sách bài tập */}
+        {/* Danh sách + search */}
         <div className="col-span-1 border rounded p-3 space-y-2 max-h-[70vh] overflow-auto">
           <input
             value={q}
@@ -160,32 +117,27 @@ export default function PoseSearch() {
           ))}
         </div>
 
-        {/* Viewer 3D / AR */}
+        {/* Viewer + tabs */}
         <div className="col-span-1 lg:col-span-2 flex flex-col">
           <div className="flex items-center justify-between mb-2">
             <div className="text-sm text-neutral-500">
               {loading3D
                 ? "Đang tải mô hình..."
-                : src3D
-                ? `Đang xem: ${selected?.name || ""}`
+                : selected
+                ? `Đang chọn: ${selected?.name || ""}`
                 : "Chọn một động tác để xem."}
             </div>
             <div className="flex items-center gap-2">
               <button
-                className={`px-3 py-1 text-sm ${
-                  tab === "3D" ? "bg-black text-white" : "bg-white"
-                }`}
-                onClick={() => setTab("3D")}
-                disabled={!src3D}
+                className={`px-3 py-1 text-sm ${tab === "3D" ? "bg-black text-white" : "bg-white"}`}
+                onClick={switchTo3D}
+                disabled={!selected}
               >
                 3D
               </button>
               <button
-                className={`px-3 py-1 text-sm ${
-                  tab === "AR" ? "bg-black text-white" : "bg-white"
-                }`}
-                onClick={enterAR}
-                // Cho phép AR ngay cả khi không có src3D (bài chỉ có GLTF)
+                className={`px-3 py-1 text-sm ${tab === "AR" ? "bg-black text-white" : "bg-white"}`}
+                onClick={switchToAR}
                 disabled={!selected}
               >
                 AR
@@ -194,19 +146,48 @@ export default function PoseSearch() {
           </div>
 
           <div className="w-full">
-            {tab === "3D" && <PoseViewer3D src={src3D} />}
+            {tab === "3D" && (
+              src3D ? (
+                <PoseViewer3D src={src3D} />
+              ) : (
+                <div className="h-[65vh] grid place-items-center border rounded">
+                  <div className="text-sm text-neutral-500">
+                    {selected
+                      ? (loading3D ? "Đang tải mô hình..." : "Nhấn 3D để tải mô hình.")
+                      : "Chọn một động tác để xem."}
+                  </div>
+                </div>
+              )
+            )}
 
             {tab === "AR" && (
-              <PoseViewerAR
-                key={arSessionKey}     // remount để không chồng scene/model
-                src={srcAR}
-                format={arFormat}      // "fbx" hoặc "gltf"
-                height="65vh"
-                onExit={() => {
-                  setTab("3D");
-                  setArSessionKey((k) => k + 1); // lần sau vào là scene mới
-                }}
-              />
+              <>
+                {isMobile &&
+                  <PoseViewerAR path={arPath} height="65vh" />
+                }
+                {!isMobile && (
+                  <div className="mt-2 p-2 rounded border bg-white">
+                    <div className="text-sm mb-2">
+                      In/hiển thị <b>marker Hiro</b> và đặt trước camera để nhận diện:
+                    </div>
+                    <a
+                      href="https://arprojectsdemo.netlify.app/markers/hiro.png"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-600 underline text-sm mb-2 inline-block"
+                    >
+                      Mở ảnh kích thước lớn
+                    </a>
+                    <div className="border rounded overflow-hidden">
+                      <img
+                        src="https://arprojectsdemo.netlify.app/markers/hiro.png"
+                        alt="Hiro marker"
+                        className="w-full h-auto block"
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

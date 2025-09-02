@@ -211,7 +211,7 @@ export default function FormLichtap() {
                   <DialogHeader>
                     <DialogTitle>Bạn có chắc muốn xóa lịch tập?</DialogTitle>
                     <DialogDescription>
-                      Hành động này sẽ đánh dấu lịch tập hiện tại là không còn hiệu lực (isTraining = 0).
+                      Hành động này sẽ đánh dấu lịch tập hiện tại là không còn hiệu lực.
                     </DialogDescription>
                   </DialogHeader>
                   {deleteMsg && <div className="text-sm text-destructive">{deleteMsg}</div>}

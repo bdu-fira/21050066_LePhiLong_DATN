@@ -199,12 +199,11 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
     setCurrentIndex(index);
 
     try { if (ex?._modelJson && ex?._weightBin) await PoseCls.load(ex._modelJson, ex._weightBin); } catch {}
-    console.log(ex.rules)
     ExpertTrainer.loadData(ex.rules, ex.voices)
     resetOrder();
     setWorldLms(null);
     setPredResult(null);
-    setRep(29);              // giữ nguyên: vào bài (hoặc reload bài) thì reset rep
+    setRep(29); 
     lastPredRef.current = "";
   }, [exercises]);
 

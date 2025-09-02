@@ -3,8 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   async rewrites() {
     return [
-      // Trình duyệt gọi:  /api/<route>  --> Next proxy -->  http://192.168.1.2:3001/<route>
-      { source: '/api/:path*', destination: 'http://192.168.1.2:3001/:path*' },
+      { source: '/backend/:path*', destination: 'http://192.168.1.2:3001/:path*' },
     ];
   },
   async headers() {
@@ -15,6 +14,7 @@ const nextConfig: NextConfig = {
       ],
     }];
   },
+  allowedDevOrigins: ['local-origin.dev', '*.local-origin.dev', "*.ngrok-free.app"],
 };
 
 export default nextConfig;

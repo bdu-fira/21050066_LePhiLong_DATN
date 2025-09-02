@@ -76,7 +76,6 @@ export class UserController {
     res.status(result.statusCode).json(
       result
     );
-    console.log(result)
   }
 
   @Post('create')

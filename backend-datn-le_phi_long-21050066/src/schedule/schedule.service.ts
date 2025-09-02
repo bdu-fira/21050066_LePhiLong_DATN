@@ -471,8 +471,6 @@ export class ScheduleService {
         };
       }
       const scheduleIDs = schedules.map(s => s.id);
-
-      console.log(scheduleIDs)
   
       // 2) Lấy CHỈ các detail đã tập (isTrained = 1) + thông tin bài/rep tổng
       const details = await this.scheduleDetailRepo
@@ -525,9 +523,6 @@ export class ScheduleService {
         WHERE scheduleDetailID IN (${placeholders})
       `;
       const wrongRows: any = await this.scheduleDetailRepo.query(sql, detailIDs);
-
-      console.log(wrongRows)
-
   
       if (!wrongRows.length) {
         return {

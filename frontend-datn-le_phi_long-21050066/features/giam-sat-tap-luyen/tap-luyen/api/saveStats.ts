@@ -7,7 +7,10 @@ export async function saveStats(payload: any) {
     const res = await axios.post(
       `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/exercise/saveStats`,
       payload,
-      { withCredentials: true }
+      { 
+        headers: { "Content-Type": "application/json" },
+        withCredentials: true 
+      }
     );
     return res.data as { statusCode: number; message: string; data?: any };
   } catch (error: any) {

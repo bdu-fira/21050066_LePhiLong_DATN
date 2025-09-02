@@ -54,15 +54,6 @@ export default function MainLayout({
 
   return (
     <html lang="vi">
-      <head>
-        {/* A-Frame + AR.js (bộ ổn định) */}
-        <Script src="https://aframe.io/releases/1.2.0/aframe.min.js" strategy="beforeInteractive" />
-        <Script src="https://cdn.jsdelivr.net/npm/ar.js@3.3.2/aframe/build/aframe-ar.min.js" strategy="beforeInteractive" />
-
-        {/* FBXLoader phụ thuộc fflate (three r125) */}
-        <Script src="https://cdn.jsdelivr.net/npm/three@0.125.2/examples/js/libs/fflate.min.js" strategy="beforeInteractive" />
-        <Script src="https://cdn.jsdelivr.net/npm/three@0.125.2/examples/js/loaders/FBXLoader.js" strategy="beforeInteractive" />
-      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased clearfix flex flex-col min-h-screen`}
       >

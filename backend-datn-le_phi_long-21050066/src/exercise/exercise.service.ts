@@ -277,7 +277,6 @@ export class ExerciseService {
       }));
       const criteriaResult = await this._evaluationCriteria.save(criteria);
       criteriaResult.forEach((c: any, index: any) => {
-        console.log(payload.criteria[index].jointAngle)
 
         payload.criteria[index].jointAngle.map((data: any, i: number)=>{
           const j = new Joint()
@@ -287,8 +286,6 @@ export class ExerciseService {
           jointList.push(j)
         })
       });
-
-      console.log(jointList)
 
       await this._jointRepository.save(jointList)
 
@@ -536,9 +533,6 @@ export class ExerciseService {
   async saveStats(payload: any) {
     try {
       const items: any[] = Array.isArray(payload.errors) ? payload.errors : [];
-      if (items.length === 0) {
-        return { isSuccess: false, statusCode: 400, message: 'Thiếu dữ liệu!' };
-      }
   
       const resultRepo = this.dataSource.getRepository(Result);
       const jointListRepo = this.dataSource.getRepository(JointList);
@@ -560,8 +554,6 @@ export class ExerciseService {
           }
         }
       );
-
-      console.log(scheduleDetailList)
       
       for (const scheduleDetail of scheduleDetailList){
           //Đánh dấu là đã tập

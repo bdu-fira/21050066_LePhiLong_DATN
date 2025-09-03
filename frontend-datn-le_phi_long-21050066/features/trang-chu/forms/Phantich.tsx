@@ -51,7 +51,7 @@ const clampPercent = (p?: number) => {
   return Math.round(n * 100) / 100; // 2 chữ số thập phân
 };
 
-export default function PhanTich() {
+export default function FormPhantichKetquaTapluyen() {
   const [data, setData] = React.useState<AnalyticsData | null>(null);
   const [loading, setLoading] = React.useState<boolean>(true);
   const [error, setError] = React.useState<string | null>(null);

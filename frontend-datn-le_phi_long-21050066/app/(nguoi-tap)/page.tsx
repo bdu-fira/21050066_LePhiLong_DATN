@@ -1,5 +1,5 @@
 import FormLichtap from "@/features/trang-chu/forms/LichTap";
-import PhanTich from "@/features/trang-chu/forms/Phantich";
+import FormPhantichKetquaTapluyen from "@/features/trang-chu/forms/Phantich";
 import Thongke from "@/features/trang-chu/forms/Thongke";
 import { Metadata } from "next";
 
@@ -15,7 +15,7 @@ export default function TrangChu() {
       <hr/>
       <div className="grid grid-cols-2 mt-2 pt-2 gap-4">
         <Thongke />
-        <PhanTich />
+        <FormPhantichKetquaTapluyen />
       </div>
     </div>
 

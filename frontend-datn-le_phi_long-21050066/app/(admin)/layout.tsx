@@ -65,7 +65,7 @@ export default function MainLayout({
                     <Home className="w-5 h-5" /> Dashboard
                   </Link>
                   <Link href="/admin/train" className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium hover:bg-accent transition-colors">
-                    <Cog className="w-5 h-5" /> Huấn luyện động tác
+                    <Cog className="w-5 h-5" /> Quản lý bài tập
                   </Link>
                 </nav>
               </div>

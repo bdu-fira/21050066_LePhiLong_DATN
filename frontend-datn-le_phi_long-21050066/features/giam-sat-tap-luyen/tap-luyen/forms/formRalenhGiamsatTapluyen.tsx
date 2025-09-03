@@ -203,7 +203,7 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
     resetOrder();
     setWorldLms(null);
     setPredResult(null);
-    setRep(29); 
+    setRep(0); 
     lastPredRef.current = "";
   }, [exercises]);
 

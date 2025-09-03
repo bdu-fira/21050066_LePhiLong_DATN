@@ -43,7 +43,7 @@ function formatNumber(n: number | undefined | null) {
   return new Intl.NumberFormat('vi-VN').format(num);
 }
 
-export default function Thongke() {
+export default function FormThongkeKetquaTapluyen() {
   const [data, setData] = React.useState<StatsData | null>(null);
   const [loading, setLoading] = React.useState<boolean>(true);
   const [error, setError] = React.useState<string | null>(null);

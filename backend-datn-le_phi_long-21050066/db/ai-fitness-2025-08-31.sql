@@ -55,7 +55,7 @@ CREATE TABLE `evaluationcriteria` (
   PRIMARY KEY (`id`),
   KEY `fk_evaluationCriteria_position1_idx` (`positionID`),
   CONSTRAINT `fk_evaluationCriteria_position1` FOREIGN KEY (`positionID`) REFERENCES `position` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=238 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=263 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -64,7 +64,7 @@ CREATE TABLE `evaluationcriteria` (
 
 LOCK TABLES `evaluationcriteria` WRITE;
 /*!40000 ALTER TABLE `evaluationcriteria` DISABLE KEYS */;
-INSERT INTO `evaluationcriteria` VALUES (56,22,'<',1,'2'),(237,6,'>=',65,'Cánh tay bạn đang hơi cao, hãy hạ xuống!');
+INSERT INTO `evaluationcriteria` VALUES (261,6,'>=',65,'Cánh tay bạn đang hơi cao, hãy hạ xuống!'),(262,24,'>=',50,'Bạn đang mở rộng tay quá mức, hãy khép lại!');
 /*!40000 ALTER TABLE `evaluationcriteria` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -84,7 +84,7 @@ CREATE TABLE `exercise` (
   `lastTrainResult` double DEFAULT NULL,
   `path` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=35 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=40 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -93,7 +93,7 @@ CREATE TABLE `exercise` (
 
 LOCK TABLES `exercise` WRITE;
 /*!40000 ALTER TABLE `exercise` DISABLE KEYS */;
-INSERT INTO `exercise` VALUES (27,'Cuốn tạ đơn (tay phải)',15,100,0.1,1,'uploads/exercise/27/model.json'),(30,'Cuốn tạ đơn (tay trái)',15,100,0.1,1,'uploads/exercise/30/model.json'),(33,'Hít đất',15,100,0.1,NULL,NULL),(34,'Squat',15,100,0.32,NULL,NULL);
+INSERT INTO `exercise` VALUES (27,'Cuốn tạ đơn (tay phải)',15,100,0.1,1,'uploads/exercise/27/model.json'),(30,'Cuốn tạ đơn (tay trái)',15,100,0.1,0.9629629850387573,'uploads/exercise/30/model.json'),(33,'Hít đất',15,100,0.1,1,'uploads/exercise/33/model.json'),(34,'Squat',15,100,0.32,1,'uploads/exercise/34/model.json');
 /*!40000 ALTER TABLE `exercise` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -134,6 +134,7 @@ DROP TABLE IF EXISTS `joint`;
 CREATE TABLE `joint` (
   `id` int NOT NULL,
   `evaluationCriteriaID` int NOT NULL,
+  `order` int NOT NULL,
   PRIMARY KEY (`id`,`evaluationCriteriaID`),
   KEY `fk_joint_evaluationCriteria1_idx` (`evaluationCriteriaID`),
   CONSTRAINT `fk_joint_evaluationCriteria1` FOREIGN KEY (`evaluationCriteriaID`) REFERENCES `evaluationcriteria` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -146,7 +147,7 @@ CREATE TABLE `joint` (
 
 LOCK TABLES `joint` WRITE;
 /*!40000 ALTER TABLE `joint` DISABLE KEYS */;
-INSERT INTO `joint` VALUES (12,56),(14,56),(16,56),(12,237),(14,237),(24,237);
+INSERT INTO `joint` VALUES (12,261,1),(12,262,1),(14,261,0),(14,262,0),(24,261,2),(24,262,2);
 /*!40000 ALTER TABLE `joint` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -160,6 +161,7 @@ DROP TABLE IF EXISTS `jointlist`;
 CREATE TABLE `jointlist` (
   `id` int NOT NULL,
   `resultID` int NOT NULL,
+  `order` int NOT NULL,
   PRIMARY KEY (`id`,`resultID`),
   KEY `fk_jointList_result1_idx` (`resultID`),
   CONSTRAINT `fk_jointList_result1` FOREIGN KEY (`resultID`) REFERENCES `result` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -172,7 +174,6 @@ CREATE TABLE `jointlist` (
 
 LOCK TABLES `jointlist` WRITE;
 /*!40000 ALTER TABLE `jointlist` DISABLE KEYS */;
-INSERT INTO `jointlist` VALUES (12,1),(14,1),(24,1);
 /*!40000 ALTER TABLE `jointlist` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -213,10 +214,11 @@ CREATE TABLE `position` (
   `id` int NOT NULL AUTO_INCREMENT,
   `exerciseID` int NOT NULL,
   `name` varchar(255) DEFAULT NULL,
+  `order` int NOT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_position_exercise1_idx` (`exerciseID`),
   CONSTRAINT `fk_position_exercise1` FOREIGN KEY (`exerciseID`) REFERENCES `exercise` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=32 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -225,7 +227,7 @@ CREATE TABLE `position` (
 
 LOCK TABLES `position` WRITE;
 /*!40000 ALTER TABLE `position` DISABLE KEYS */;
-INSERT INTO `position` VALUES (4,27,'Đứng thẳng'),(5,27,'Cuốn tới giữa'),(6,27,'Cuốn cao'),(13,30,'Standing'),(14,30,'Mid'),(15,30,'Peak'),(22,33,'Label 01'),(23,33,'Label 02'),(24,33,'Label 03'),(25,34,'Label 01'),(26,34,'Label 02'),(27,34,'Label 03');
+INSERT INTO `position` VALUES (4,27,'Đứng thẳng',0),(5,27,'Cuốn tới giữa',1),(6,27,'Cuốn cao',2),(13,30,'Đứng thẳng',0),(14,30,'Cuốn giữa',0),(15,30,'Cuốn cao',0),(22,33,'Chống sát đất',0),(23,33,'Chống giữa',1),(24,33,'Chống cao',2),(25,34,'Đứng thẳng',0),(26,34,'Squat giữa',1),(27,34,'Squat sát đất',2);
 /*!40000 ALTER TABLE `position` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -247,7 +249,7 @@ CREATE TABLE `result` (
   PRIMARY KEY (`id`),
   KEY `fk_result_scheduleDetail1_idx` (`scheduleDetailID`),
   CONSTRAINT `fk_result_scheduleDetail1` FOREIGN KEY (`scheduleDetailID`) REFERENCES `scheduledetail` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -256,7 +258,6 @@ CREATE TABLE `result` (
 
 LOCK TABLES `result` WRITE;
 /*!40000 ALTER TABLE `result` DISABLE KEYS */;
-INSERT INTO `result` VALUES (1,281,2,30,'Đứng thẳng',71,'Cánh tay bạn đang hơi cao, hãy hạ xuống!');
 /*!40000 ALTER TABLE `result` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -275,7 +276,7 @@ CREATE TABLE `schedule` (
   PRIMARY KEY (`id`),
   KEY `fk_schedule_trainee1_idx` (`traineeID`),
   CONSTRAINT `fk_schedule_trainee1` FOREIGN KEY (`traineeID`) REFERENCES `trainee` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=27 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -284,7 +285,7 @@ CREATE TABLE `schedule` (
 
 LOCK TABLES `schedule` WRITE;
 /*!40000 ALTER TABLE `schedule` DISABLE KEYS */;
-INSERT INTO `schedule` VALUES (21,17,3,0),(22,17,3,0),(23,17,2,0),(24,17,2,1);
+INSERT INTO `schedule` VALUES (25,17,1,0),(26,17,2,1);
 /*!40000 ALTER TABLE `schedule` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -308,7 +309,7 @@ CREATE TABLE `scheduledetail` (
   KEY `fk_exercise_has_schedule_exercise1_idx` (`exerciseID`),
   CONSTRAINT `fk_exercise_has_schedule_exercise1` FOREIGN KEY (`exerciseID`) REFERENCES `exercise` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_exercise_has_schedule_schedule1` FOREIGN KEY (`scheduleID`) REFERENCES `schedule` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=525 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=649 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -317,7 +318,7 @@ CREATE TABLE `scheduledetail` (
 
 LOCK TABLES `scheduledetail` WRITE;
 /*!40000 ALTER TABLE `scheduledetail` DISABLE KEYS */;
-INSERT INTO `scheduledetail` VALUES (261,21,27,1,19,0,'2025-08-25'),(262,21,30,1,19,0,'2025-08-25'),(265,21,27,1,19,0,'2025-08-26'),(266,21,30,1,19,0,'2025-08-26'),(269,21,27,1,19,0,'2025-08-27'),(270,21,30,1,19,0,'2025-08-27'),(273,21,27,1,19,0,'2025-08-28'),(274,21,30,1,19,0,'2025-08-28'),(277,21,27,1,19,0,'2025-08-29'),(278,21,30,1,19,0,'2025-08-29'),(281,21,27,1,19,1,'2025-09-01'),(282,21,30,1,19,0,'2025-09-01'),(285,21,27,1,19,0,'2025-09-02'),(286,21,30,1,19,0,'2025-09-02'),(289,21,27,1,19,0,'2025-09-03'),(290,21,30,1,19,0,'2025-09-03'),(293,21,27,1,19,0,'2025-09-04'),(294,21,30,1,19,0,'2025-09-04'),(297,21,27,1,19,0,'2025-09-05'),(298,21,30,1,19,0,'2025-09-05'),(301,21,27,1,19,0,'2025-09-08'),(302,21,30,1,19,0,'2025-09-08'),(305,21,27,1,19,0,'2025-09-09'),(306,21,30,1,19,0,'2025-09-09'),(309,21,27,1,19,0,'2025-09-10'),(310,21,30,1,19,0,'2025-09-10'),(313,21,27,1,19,0,'2025-09-11'),(314,21,30,1,19,0,'2025-09-11'),(317,21,27,1,19,0,'2025-09-12'),(318,21,30,1,19,0,'2025-09-12'),(321,21,27,1,19,0,'2025-09-15'),(322,21,30,1,19,0,'2025-09-15'),(325,21,27,1,19,0,'2025-09-16'),(326,21,30,1,19,0,'2025-09-16'),(329,21,27,1,19,0,'2025-09-17'),(330,21,30,1,19,0,'2025-09-17'),(333,21,27,1,19,0,'2025-09-18'),(334,21,30,1,19,0,'2025-09-18'),(337,21,27,1,19,0,'2025-09-19'),(338,21,30,1,19,0,'2025-09-19'),(341,22,27,4,32,0,'2025-09-01'),(342,22,30,4,32,0,'2025-09-01'),(345,22,27,4,32,0,'2025-09-03'),(346,22,30,4,32,0,'2025-09-03'),(349,22,27,4,32,0,'2025-09-05'),(350,22,30,4,32,0,'2025-09-05'),(353,22,27,4,32,0,'2025-09-08'),(354,22,30,4,32,0,'2025-09-08'),(357,22,27,4,32,0,'2025-09-10'),(358,22,30,4,32,0,'2025-09-10'),(361,22,27,4,32,0,'2025-09-12'),(362,22,30,4,32,0,'2025-09-12'),(365,22,27,4,32,0,'2025-09-15'),(366,22,30,4,32,0,'2025-09-15'),(369,22,27,4,32,0,'2025-09-17'),(370,22,30,4,32,0,'2025-09-17'),(373,22,27,4,32,0,'2025-09-19'),(374,22,30,4,32,0,'2025-09-19'),(377,22,27,4,32,0,'2025-09-22'),(378,22,30,4,32,0,'2025-09-22'),(381,22,27,4,32,0,'2025-09-24'),(382,22,30,4,32,0,'2025-09-24'),(385,22,27,4,32,0,'2025-09-26'),(386,22,30,4,32,0,'2025-09-26'),(389,22,27,4,32,0,'2025-09-29'),(390,22,30,4,32,0,'2025-09-29'),(393,22,27,4,32,0,'2025-10-01'),(394,22,30,4,32,0,'2025-10-01'),(397,22,27,4,32,0,'2025-10-03'),(398,22,30,4,32,0,'2025-10-03'),(401,22,27,4,32,0,'2025-10-06'),(402,22,30,4,32,0,'2025-10-06'),(405,22,27,4,32,0,'2025-10-08'),(406,22,30,4,32,0,'2025-10-08'),(409,22,27,4,32,0,'2025-10-10'),(410,22,30,4,32,0,'2025-10-10'),(413,23,27,2,20,0,'2025-09-01'),(414,23,30,2,20,0,'2025-09-01'),(417,23,27,2,20,0,'2025-09-03'),(418,23,30,2,20,0,'2025-09-03'),(421,23,27,2,20,0,'2025-09-05'),(422,23,30,2,20,0,'2025-09-05'),(425,23,27,2,20,0,'2025-09-08'),(426,23,30,2,20,0,'2025-09-08'),(429,23,27,2,20,0,'2025-09-10'),(430,23,30,2,20,0,'2025-09-10'),(433,23,27,2,20,0,'2025-09-12'),(434,23,30,2,20,0,'2025-09-12'),(437,23,27,2,20,0,'2025-09-15'),(438,23,30,2,20,0,'2025-09-15'),(441,23,27,2,20,0,'2025-09-17'),(442,23,30,2,20,0,'2025-09-17'),(445,23,27,2,20,0,'2025-09-19'),(446,23,30,2,20,0,'2025-09-19'),(449,23,27,2,20,0,'2025-09-22'),(450,23,30,2,20,0,'2025-09-22'),(453,23,27,2,20,0,'2025-09-24'),(454,23,30,2,20,0,'2025-09-24'),(457,23,27,2,20,0,'2025-09-26'),(458,23,30,2,20,0,'2025-09-26'),(461,24,27,2,20,0,'2025-09-01'),(462,24,30,2,20,0,'2025-09-01'),(465,24,27,2,20,0,'2025-09-02'),(466,24,30,2,20,0,'2025-09-02'),(469,24,27,2,20,0,'2025-09-04'),(470,24,30,2,20,0,'2025-09-04'),(473,24,27,2,20,0,'2025-09-06'),(474,24,30,2,20,0,'2025-09-06'),(477,24,27,2,20,0,'2025-09-08'),(478,24,30,2,20,0,'2025-09-08'),(481,24,27,2,20,0,'2025-09-09'),(482,24,30,2,20,0,'2025-09-09'),(485,24,27,2,20,0,'2025-09-11'),(486,24,30,2,20,0,'2025-09-11'),(489,24,27,2,20,0,'2025-09-13'),(490,24,30,2,20,0,'2025-09-13'),(493,24,27,2,20,0,'2025-09-15'),(494,24,30,2,20,0,'2025-09-15'),(497,24,27,2,20,0,'2025-09-16'),(498,24,30,2,20,0,'2025-09-16'),(501,24,27,2,20,0,'2025-09-18'),(502,24,30,2,20,0,'2025-09-18'),(505,24,27,2,20,0,'2025-09-20'),(506,24,30,2,20,0,'2025-09-20'),(509,24,27,2,20,0,'2025-09-22'),(510,24,30,2,20,0,'2025-09-22'),(513,24,27,2,20,0,'2025-09-23'),(514,24,30,2,20,0,'2025-09-23'),(517,24,27,2,20,0,'2025-09-25'),(518,24,30,2,20,0,'2025-09-25'),(521,24,27,2,20,0,'2025-09-27'),(522,24,30,2,20,0,'2025-09-27');
+INSERT INTO `scheduledetail` VALUES (525,25,27,1,11,1,'2025-09-08'),(529,25,27,1,11,1,'2025-09-10'),(533,25,27,1,11,0,'2025-09-12'),(537,25,27,1,11,0,'2025-09-15'),(541,25,27,1,11,0,'2025-09-17'),(545,25,27,1,11,0,'2025-09-19'),(549,25,27,1,11,0,'2025-09-22'),(553,25,27,1,11,0,'2025-09-24'),(557,25,27,1,11,0,'2025-09-26'),(561,25,27,1,11,0,'2025-09-29'),(565,25,27,1,11,0,'2025-10-01'),(569,25,27,1,11,0,'2025-10-03'),(573,25,27,1,11,0,'2025-10-06'),(577,25,27,1,11,0,'2025-10-08'),(581,25,27,1,11,0,'2025-10-10'),(585,26,27,2,20,0,'2025-09-08'),(586,26,30,2,20,0,'2025-09-08'),(587,26,33,2,20,0,'2025-09-08'),(588,26,34,2,20,0,'2025-09-08'),(589,26,27,2,20,0,'2025-09-09'),(590,26,30,2,20,0,'2025-09-09'),(591,26,33,2,20,0,'2025-09-09'),(592,26,34,2,20,0,'2025-09-09'),(593,26,27,2,20,0,'2025-09-11'),(594,26,30,2,20,0,'2025-09-11'),(595,26,33,2,20,0,'2025-09-11'),(596,26,34,2,20,0,'2025-09-11'),(597,26,27,2,20,0,'2025-09-13'),(598,26,30,2,20,0,'2025-09-13'),(599,26,33,2,20,0,'2025-09-13'),(600,26,34,2,20,0,'2025-09-13'),(601,26,27,2,20,0,'2025-09-15'),(602,26,30,2,20,0,'2025-09-15'),(603,26,33,2,20,0,'2025-09-15'),(604,26,34,2,20,0,'2025-09-15'),(605,26,27,2,20,0,'2025-09-16'),(606,26,30,2,20,0,'2025-09-16'),(607,26,33,2,20,0,'2025-09-16'),(608,26,34,2,20,0,'2025-09-16'),(609,26,27,2,20,0,'2025-09-18'),(610,26,30,2,20,0,'2025-09-18'),(611,26,33,2,20,0,'2025-09-18'),(612,26,34,2,20,0,'2025-09-18'),(613,26,27,2,20,0,'2025-09-20'),(614,26,30,2,20,0,'2025-09-20'),(615,26,33,2,20,0,'2025-09-20'),(616,26,34,2,20,0,'2025-09-20'),(617,26,27,2,20,0,'2025-09-22'),(618,26,30,2,20,0,'2025-09-22'),(619,26,33,2,20,0,'2025-09-22'),(620,26,34,2,20,0,'2025-09-22'),(621,26,27,2,20,0,'2025-09-23'),(622,26,30,2,20,0,'2025-09-23'),(623,26,33,2,20,0,'2025-09-23'),(624,26,34,2,20,0,'2025-09-23'),(625,26,27,2,20,0,'2025-09-25'),(626,26,30,2,20,0,'2025-09-25'),(627,26,33,2,20,0,'2025-09-25'),(628,26,34,2,20,0,'2025-09-25'),(629,26,27,2,20,0,'2025-09-27'),(630,26,30,2,20,0,'2025-09-27'),(631,26,33,2,20,0,'2025-09-27'),(632,26,34,2,20,0,'2025-09-27'),(633,26,27,2,20,0,'2025-09-29'),(634,26,30,2,20,0,'2025-09-29'),(635,26,33,2,20,0,'2025-09-29'),(636,26,34,2,20,0,'2025-09-29'),(637,26,27,2,20,0,'2025-09-30'),(638,26,30,2,20,0,'2025-09-30'),(639,26,33,2,20,0,'2025-09-30'),(640,26,34,2,20,0,'2025-09-30'),(641,26,27,2,20,0,'2025-10-02'),(642,26,30,2,20,0,'2025-10-02'),(643,26,33,2,20,0,'2025-10-02'),(644,26,34,2,20,0,'2025-10-02'),(645,26,27,2,20,0,'2025-10-04'),(646,26,30,2,20,0,'2025-10-04'),(647,26,33,2,20,0,'2025-10-04'),(648,26,34,2,20,0,'2025-10-04');
 /*!40000 ALTER TABLE `scheduledetail` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -364,10 +365,7 @@ CREATE TABLE `user` (
   `email` varchar(255) NOT NULL,
   `password` varchar(255) NOT NULL,
   `lastReset` datetime DEFAULT NULL,
-  `user_id` int NOT NULL,
-  PRIMARY KEY (`id`),
-  KEY `fk_user_user1_idx` (`user_id`),
-  CONSTRAINT `fk_user_user1` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`)
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -377,7 +375,7 @@ CREATE TABLE `user` (
 
 LOCK TABLES `user` WRITE;
 /*!40000 ALTER TABLE `user` DISABLE KEYS */;
-INSERT INTO `user` VALUES (17,'Lê Phi Long',1,'2003-09-13',0,'21050066@student.bdu.edu.vn','$2b$12$OQu8H/uYyXJ7zUh3xS4eI.g8QnPaMOSf8hHMEA.hhRQ3XfZlvojFu',NULL,0);
+INSERT INTO `user` VALUES (1,'Admin',1,'2003-09-13',1,'admin@gmail.com','$2b$12$OQu8H/uYyXJ7zUh3xS4eI.g8QnPaMOSf8hHMEA.hhRQ3XfZlvojFu',NULL),(17,'Lê Phi Long',1,'2003-09-13',0,'21050066@student.bdu.edu.vn','$2b$12$AKdD.E8J7UZ5u9.NtCD.P.FqB9pu5OjrUKMC9NekyFGJqRC44gf5y','2025-09-01 23:01:21');
 /*!40000 ALTER TABLE `user` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -390,4 +388,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-08-31 14:06:03
+-- Dump completed on 2025-09-03 22:58:27

@@ -59,4 +59,11 @@ export class ScheduleController {
     res.status(result.statusCode).json(result);
   }
 
+  @UseGuards(AuthGuard([1]))
+  @Get('getAllStats')
+  async getAllStats(@Res() res: Response) {
+    const result = await this.scheduleService.getAllStats();
+    res.status(result.statusCode).json(result);
+  }
+
 }

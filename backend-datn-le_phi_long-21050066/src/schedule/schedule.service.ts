@@ -597,6 +597,46 @@ export class ScheduleService {
       return { statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
     }
   }
+
+  async getAllStats(): Promise<any> {
+    try {
+      const [
+        traineeCount,
+        exerciseCount,
+        scheduleDetailCount,
+        trainedScheduleDetailCount,
+        resultCount,
+        activeScheduleCount,
+      ] = await Promise.all([
+        this.traineeRepo.count(),
+        this.exerciseRepo.count(),
+        this.scheduleDetailRepo.count(),
+        this.scheduleDetailRepo.count({ where: { isTrained: In([1 as any, true as any]) } as any }),
+        this.resultRepo.count(),
+        this.scheduleRepo.count({ where: { isTraining: In([1 as any, true as any]) } as any }),
+      ]);
+
+      return {
+        statusCode: 200,
+        data: {
+          // Số người tập trong hệ thống (trainee)
+          trainees: traineeCount,
+          // Tổng số bài tập trong hệ thống (exercise)
+          exercises: exerciseCount,
+          // Số lượng bài tập đã tạo (scheduleDetail)
+          createdExercises: scheduleDetailCount,
+          // Số lượng bài tập đã tập (scheduleDetail.isTrained)
+          practicedExercises: trainedScheduleDetailCount,
+          // Số lượng lỗi (result)
+          errors: resultCount,
+          // Số lượng lịch tập đã tạo (schedule.isTraining)
+          createdSchedules: activeScheduleCount,
+        },
+      };
+    } catch (e) {
+      return { statusCode: 500, message: 'Lỗi hệ thống, vui lòng thử lại sau.' };
+    }
+  }
   
   
 }

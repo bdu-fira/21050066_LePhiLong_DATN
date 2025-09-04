@@ -6,7 +6,6 @@ export async function getSchedule(): Promise<GetScheduleResponse> {
     credentials: "include",
   });
 
-  // Nếu BE trả non-JSON, vẫn cố parse -> ném lỗi có ý nghĩa
   let json: unknown;
   try {
     json = await res.json();
@@ -16,7 +15,6 @@ export async function getSchedule(): Promise<GetScheduleResponse> {
 
   const parsed = getScheduleResponseSchema.safeParse(json);
   if (!parsed.success) {
-    // Bạn có thể log parsed.error để debug khi cần
     throw new Error("Dữ liệu lịch tập không đúng định dạng.");
   }
   return parsed.data;

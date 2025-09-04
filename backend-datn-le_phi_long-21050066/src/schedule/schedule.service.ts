@@ -131,25 +131,32 @@ export class ScheduleService {
       const exs = await this.exerciseRepo.find()
 
       const _exists = (p: any) => { try { return fs.existsSync(p); } catch { return false; } };
+
       const _hasAssets = (exerciseId: any) => {
         try {
           const dir = path.join(process.cwd(), 'uploads', 'exercise', String(exerciseId));
           if (!_exists(dir)) return false;
           const model = path.join(dir, 'model.json');
-          const weights = path.join(dir, 'weights.bin');
+          const weights = path.join(dir, 'model.weights.bin');
           const instruction = path.join(dir, 'instruction.fbx');
-                    let hasModel = _exists(model);
+          let hasModel = _exists(model);
+
           if (!hasModel) {
             try {
               const names: any[] = fs.readdirSync(dir);
               hasModel = names.some((n: any) => String(n).toLowerCase().endsWith('.json'));
             } catch { /* ignore */ }
           }
+
           return hasModel && _exists(weights) && _exists(instruction);
         } catch { return false; }
       };
+
+
       if (Array.isArray(exs)) {
         const valid = exs.filter((ex: any) => _hasAssets(ex?.id));
+        console.log(valid)
+
         exs.length = 0;
         for (const e of valid) exs.push(e);
       }

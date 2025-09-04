@@ -61,8 +61,6 @@ export default function FormLichtap() {
   const totalEx = days.reduce((a: any, b: any) => a + (b?.exercises || 0), 0)
 
   const hasWorkout = !!(sel && Number(sel.exercises) > 0)
-  console.log(sel)
-
 
   const groups = (() => {
     const g = sel?.groups
@@ -86,7 +84,6 @@ export default function FormLichtap() {
     setDeleteMsg("")
     try {
       const r = await deleteSchedule()
-      console.log("deleteSchedule ->", r)
       if (r?.isSuccess) {
         setDeleteMsg(r.message)
         reload()
@@ -101,13 +98,13 @@ export default function FormLichtap() {
 
   if (!s.loading && !has) {
     return (
-      <div className="mx-auto">
-        <div className="mx-auto flex flex-col gap-8 px-6 py-16 items-start max-w-4xl w-full">
-          <div className="bg-white shadow-lg border rounded-2xl p-10 w-full text-center">
+      <div className="mx-auto px-4">
+        <div className="mx-auto flex flex-col gap-8 py-12 items-start max-w-4xl w-full">
+          <div className="bg-white shadow-lg border rounded-2xl p-6 sm:p-10 w-full text-center">
             <div className="mx-auto mb-4 flex items-center justify-center w-12 h-12 rounded-full bg-muted">
               <CalendarPlus className="w-6 h-6 text-orange-500" />
             </div>
-            <h2 className="text-xl font-bold mb-2">Bạn chưa có lịch tập</h2>
+            <h2 className="text-lg sm:text-xl font-bold mb-2">Bạn chưa có lịch tập</h2>
             {s.msg ? <p className="text-sm text-muted-foreground mb-6">{s.msg}</p> : null}
             <Button size="lg" className="font-semibold bg-orange-500 hover:bg-orange-600 text-white" onClick={() => router.push("/tao-lich-tap-hang-tuan")}>
               <CalendarPlus className="mr-2 w-5 h-5" />
@@ -121,14 +118,15 @@ export default function FormLichtap() {
 
   return (
     <div>
-      <div className="mx-auto flex flex-col gap-8 px-6 py-10 items-start">
-        <div className="min-w-[380px] max-w-[800px] mx-auto">
-          <div className="mx-auto bg-white shadow-lg border rounded-2xl p-8 w-full space-y-7">
-            <div className="flex items-center justify-between mb-4">
+      <div className="mx-auto flex flex-col gap-8 px-4 sm:px-6 py-8 items-start">
+        <div className="w-full max-w-[800px] mx-auto">
+          <div className="mx-auto bg-white shadow-lg border rounded-2xl p-4 sm:p-8 w-full space-y-6">
+            {/* Header tuần + điều hướng */}
+            <div className="flex items-center justify-between mb-2">
               <Button variant="ghost" onClick={prev} disabled={s.weekIdx <= 0 || !has}><ChevronLeft /></Button>
               <div className="flex items-center gap-2">
                 <Flame className="w-6 h-6 text-orange-500" />
-                <h2 className="text-xl font-bold text-primary tracking-tight">
+                <h2 className="text-lg sm:text-xl font-bold text-primary tracking-tight">
                   {s.loading ? "Đang tải lịch luyện tập..." : `Lịch luyện tập - ${s.weeks[s.weekIdx]?.weekLabel ?? "—"}`}
                 </h2>
               </div>
@@ -137,7 +135,8 @@ export default function FormLichtap() {
 
             {!s.loading && s.msg && s.code !== 200 ? <div className="text-sm text-destructive">{s.msg}</div> : null}
 
-            <div className="flex gap-2 mb-1 overflow-x-auto px-1">
+            {/* Thanh chọn ngày cuộn ngang */}
+            <div className="flex gap-2 mb-1 overflow-x-auto px-1 -mx-1 justify-center">
               {days.length ? (
                 days.map((d: any, i: number) => (
                   <Button
@@ -162,16 +161,19 @@ export default function FormLichtap() {
               )}
             </div>
 
-            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/80 rounded-lg px-4 py-2">
+            {/* Info bar */}
+            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/80 rounded-lg px-3 py-2">
               <Info className="w-4 h-4 text-blue-500" />
               <span>Hiển thị tổng số động tác và tổng kcal dự kiến của từng ngày.</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-5 py-2">
+            {/* Tóm tắt ngày */}
+            <div className="grid grid-cols-2 gap-4 py-2">
               <SummaryItem icon={<ListTodo className="w-6 h-6 text-violet-500" />} label="Động tác (ngày)" value={sel ? sel.exercises : 0} />
               <SummaryItem icon={<Flame className="w-6 h-6 text-orange-500" />} label="Kcal (ngày)" value={sel ? f2(sel.calories) : 0} />
             </div>
 
+            {/* Top kcal theo động tác */}
             {groups.length ? (
               <div className="rounded-lg border p-3">
                 <div className="text-sm font-semibold mb-2">Kcal theo động tác (ngày)</div>
@@ -186,20 +188,26 @@ export default function FormLichtap() {
               </div>
             ) : null}
 
-            <div className="flex gap-3">
-              <Button size="lg" disabled={!hasWorkout} className="flex-1 font-bold text-lg text-white shadow bg-orange-500 hover:bg-orange-600 transition-all" onClick={() => router.push(`/tap-luyen/${sel.date}`)}>
+            {/* CTA luyện tập */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button
+                size="lg"
+                disabled={!hasWorkout}
+                className="flex-1 font-bold text-lg text-white shadow bg-orange-500 hover:bg-orange-600 transition-all"
+                onClick={() => sel && router.push(`/tap-luyen/${sel.date}`)}
+              >
                 <TrendingUp className="mr-2 w-6 h-6" />
                 Bắt đầu luyện tập
               </Button>
             </div>
 
-            <div className="flex gap-3">
+            {/* Điều chỉnh / Xóa */}
+            <div className="flex flex-col sm:flex-row gap-3">
               <Button size="lg" variant="secondary" className="font-semibold" onClick={() => router.push("/dieu-chinh-lich-tap")}>
                 <CalendarPlus className="mr-2 w-5 h-5" />
                 Điều chỉnh lịch tập
               </Button>
 
-              {/* Nút xoá với Dialog thường */}
               <Dialog>
                 <DialogTrigger asChild>
                   <Button size="lg" variant="destructive" className="font-semibold">
@@ -216,12 +224,10 @@ export default function FormLichtap() {
                   </DialogHeader>
                   {deleteMsg && <div className="text-sm text-destructive">{deleteMsg}</div>}
                   <DialogFooter>
-                    {/* Nút Hủy đóng dialog */}
                     <DialogClose asChild>
                       <Button variant="outline">Hủy</Button>
                     </DialogClose>
 
-                    {/* Nút Xác nhận */}
                     <Button
                       variant="destructive"
                       onClick={async () => {
@@ -237,17 +243,19 @@ export default function FormLichtap() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-
             </div>
 
             <div className="w-full h-px bg-gray-200 my-1" />
 
+            {/* Tổng hợp tuần */}
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <CheckCircle2 className="w-5 h-5 text-green-500" />
-                <span className="font-semibold text-orange-600 text-lg">Tổng hợp {s.weeks[s.weekIdx]?.weekLabel ?? "—"}</span>
+                <span className="font-semibold text-orange-600 text-base sm:text-lg">
+                  Tổng hợp {s.weeks[s.weekIdx]?.weekLabel ?? "—"}
+                </span>
               </div>
-              <div className="grid grid-cols-2 gap-5">
+              <div className="grid grid-cols-2 gap-4">
                 <SummaryItem icon={<ListTodo className="w-6 h-6 text-violet-600" />} label="Tổng động tác (tuần)" value={f2(totalEx)} />
                 <SummaryItem icon={<Flame className="w-6 h-6 text-orange-500" />} label="Tổng Kcal (tuần)" value={f2(totalCal)} />
               </div>
@@ -263,8 +271,8 @@ function SummaryItem({ icon, label, value }: any) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl bg-muted/70 p-3 shadow-sm min-h-[70px]">
       {icon}
-      <div className="text-xs font-medium text-muted-foreground mt-1">{label}</div>
-      <div className="text-xl font-bold text-primary">{value}</div>
+      <div className="text-xs font-medium text-muted-foreground mt-1 text-center">{label}</div>
+      <div className="text-lg sm:text-xl font-bold text-primary">{value}</div>
     </div>
   )
 }

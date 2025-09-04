@@ -8,7 +8,8 @@ import { Muscle } from 'src/entities/muscle.entity';
 import { ExerciseLevel } from 'src/entities/exerciselevel.entity';
 import { Trainee } from 'src/entities/trainee.entity';
 import { Result } from 'src/entities/result.entity';
-
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class ScheduleService {
@@ -128,6 +129,31 @@ export class ScheduleService {
       const flags = this.distribute(daysPerWeek)
   
       const exs = await this.exerciseRepo.find()
+
+      const _exists = (p: any) => { try { return fs.existsSync(p); } catch { return false; } };
+      const _hasAssets = (exerciseId: any) => {
+        try {
+          const dir = path.join(process.cwd(), 'uploads', 'exercise', String(exerciseId));
+          if (!_exists(dir)) return false;
+          const model = path.join(dir, 'model.json');
+          const weights = path.join(dir, 'weights.bin');
+          const instruction = path.join(dir, 'instruction.fbx');
+                    let hasModel = _exists(model);
+          if (!hasModel) {
+            try {
+              const names: any[] = fs.readdirSync(dir);
+              hasModel = names.some((n: any) => String(n).toLowerCase().endsWith('.json'));
+            } catch { /* ignore */ }
+          }
+          return hasModel && _exists(weights) && _exists(instruction);
+        } catch { return false; }
+      };
+      if (Array.isArray(exs)) {
+        const valid = exs.filter((ex: any) => _hasAssets(ex?.id));
+        exs.length = 0;
+        for (const e of valid) exs.push(e);
+      }
+      
       const musRows: any[] = await this.muscleRepo.find()
       const lvlRows: any[] = await this.levelRepo.find({ where: { level: goal as any } })
   

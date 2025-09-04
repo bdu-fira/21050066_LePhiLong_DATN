@@ -11,6 +11,7 @@ import {
   CardContent,
 } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+
 // ===== Types khớp response backend =====
 type DayStat = {
   date: string;           // "YYYY-MM-DD"
@@ -68,15 +69,13 @@ export default function FormThongkeKetquaTapluyen() {
       }
     })();
 
-    return () => {
-      mounted = false;
-    };
+  return () => { mounted = false; };
   }, []);
 
   // ====== Render ======
   if (loading) {
     return (
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-4 sm:px-0">
         {[...Array(4)].map((_, i) => (
           <div key={i} className="rounded-lg border bg-card text-card-foreground p-4 animate-pulse">
             <div className="h-4 w-24 bg-muted rounded mb-4" />
@@ -95,7 +94,7 @@ export default function FormThongkeKetquaTapluyen() {
 
   if (error) {
     return (
-      <div className="rounded-lg border p-4 text-sm text-red-600 bg-red-50">
+      <div className="rounded-lg border p-4 text-sm text-red-600 bg-red-50 px-4 sm:px-0">
         {error}
       </div>
     );
@@ -103,23 +102,23 @@ export default function FormThongkeKetquaTapluyen() {
 
   if (!data) {
     return (
-      <div className="rounded-lg border p-4 text-muted-foreground">
+      <div className="rounded-lg border p-4 text-muted-foreground px-4 sm:px-0">
         Không có dữ liệu thống kê.
       </div>
     );
   }
 
-  const { summary, days } = data;
+  const { summary } = data;
   const percent =
     summary.totalExercises > 0
       ? Math.round((summary.trainedExercises / summary.totalExercises) * 100)
       : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 sm:px-0">
       {/* Summary cards */}
-      <h2 className='text-center text-3xl text-primary'>Thống kê</h2>
-      <div className="grid grid-cols-2 gap-4">
+      <h2 className="text-center text-2xl sm:text-3xl text-primary font-semibold">Thống kê</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Tiến độ hiện tại</CardTitle>

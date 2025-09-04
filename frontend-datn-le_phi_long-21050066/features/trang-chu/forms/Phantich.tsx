@@ -83,8 +83,8 @@ export default function FormPhantichKetquaTapluyen() {
   // ====== Render ======
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-6 px-4 sm:px-0">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="rounded-lg border bg-card text-card-foreground p-4 animate-pulse">
               <div className="h-4 w-24 bg-muted rounded mb-4" />
@@ -105,7 +105,7 @@ export default function FormPhantichKetquaTapluyen() {
 
   if (error) {
     return (
-      <div className="rounded-lg border p-4 text-sm text-red-600 bg-red-50">
+      <div className="rounded-lg border p-4 text-sm text-red-600 bg-red-50 px-4 sm:px-0">
         {error}
       </div>
     );
@@ -113,7 +113,7 @@ export default function FormPhantichKetquaTapluyen() {
 
   if (!data) {
     return (
-      <div className="rounded-lg border p-4 text-muted-foreground">
+      <div className="rounded-lg border p-4 text-muted-foreground px-4 sm:px-0">
         Không có dữ liệu phân tích.
       </div>
     );
@@ -125,10 +125,10 @@ export default function FormPhantichKetquaTapluyen() {
   const latePct  = clampPercent(summary?.stage?.late?.percent);
 
   return (
-    <div className="space-y-6">
-      {/* ====== Summary: 4 thẻ, mỗi dòng 2 cột ====== */}
-      <h2 className='text-center text-3xl text-primary'>Phân tích</h2>
-      <div className="grid grid-cols-2 gap-4">
+    <div className="space-y-6 px-4 sm:px-0">
+      {/* ====== Summary: 4 thẻ, mobile 1 cột, tablet 2 cột, desktop 4 cột ====== */}
+      <h2 className="text-center text-2xl sm:text-3xl text-primary font-semibold">Phân tích</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Tổng số lỗi</CardTitle>
@@ -179,38 +179,42 @@ export default function FormPhantichKetquaTapluyen() {
         </Card>
       </div>
 
-      {/* ====== Bảng top bài tập sai nhiều nhất ====== */}
+      {/* ====== Bảng top bài tập sai nhiều nhất (scroll ngang khi hẹp) ====== */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Bài tập sai nhiều nhất</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[60px]">#</TableHead>
-                <TableHead>Bài tập</TableHead>
-                <TableHead className="text-right">Số lỗi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {topExercises?.length ? (
-                topExercises.map((ex, idx) => (
-                  <TableRow key={`${ex.exerciseID}-${idx}`}>
-                    <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
-                    <TableCell className="font-medium">{ex.exerciseName}</TableCell>
-                    <TableCell className="text-right">{formatNumber(ex.wrongCount)}</TableCell>
+          <div className="-mx-4 sm:mx-0 overflow-x-auto">
+            <div className="inline-block min-w-[520px] align-middle">
+              <Table className="text-sm">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[60px]">#</TableHead>
+                    <TableHead>Bài tập</TableHead>
+                    <TableHead className="text-right">Số lỗi</TableHead>
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-center text-muted-foreground">
-                    Chưa có dữ liệu lỗi để xếp hạng bài tập.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                </TableHeader>
+                <TableBody>
+                  {topExercises?.length ? (
+                    topExercises.map((ex, idx) => (
+                      <TableRow key={`${ex.exerciseID}-${idx}`}>
+                        <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
+                        <TableCell className="font-medium">{ex.exerciseName}</TableCell>
+                        <TableCell className="text-right">{formatNumber(ex.wrongCount)}</TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center text-muted-foreground">
+                        Chưa có dữ liệu lỗi để xếp hạng bài tập.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

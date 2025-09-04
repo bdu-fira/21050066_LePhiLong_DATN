@@ -77,6 +77,8 @@ export class ScheduleService {
   async createWeeklySchedule(input: any): Promise<any> {
     try {
       const s = await this.generateSchedule(input)
+      console.log(s.week[0].exercises)
+
       const header = await this.scheduleRepo.save({
         traineeID: input.userId,
         level: s.meta.goal,
@@ -92,6 +94,8 @@ export class ScheduleService {
           rep: e.reps,
         } as any))
       )
+
+      console.log(details)
   
       if (details.length) await this.scheduleDetailRepo.save(details)
   
@@ -110,11 +114,13 @@ export class ScheduleService {
       const goal = Number(p.goal) || 1
       const muscles = Array.isArray(p.muscles) ? p.muscles.map((x: any)=>Number(x)) : []
       const daysPerWeek = Number(p.daysPerWeek) || 3
+
   
       const h = height > 0 ? height : 1
       const bmi = weight / Math.pow(h / 100, 2)
       const band = bmi < 18.5 ? 'under' : bmi <= 24.9 ? 'normal' : bmi <= 29.9 ? 'over' : bmi <= 34.9 ? 'obeseI' : 'obeseII'
   
+      
       const rules: any = {
         under: { 1:{ds:0,rp:0}, 2:{ds:0,rp:0}, 3:{ds:0,rp:0} },
         normal:{ 1:{ds:0,rp:5}, 2:{ds:0,rp:0}, 3:{ds:1,rp:5} },
@@ -155,7 +161,6 @@ export class ScheduleService {
 
       if (Array.isArray(exs)) {
         const valid = exs.filter((ex: any) => _hasAssets(ex?.id));
-        console.log(valid)
 
         exs.length = 0;
         for (const e of valid) exs.push(e);
@@ -171,6 +176,7 @@ export class ScheduleService {
         a.push(Number(m.id))
         muscleMap.set(k, a)
       }
+
   
       const baseMap = new Map<number, { set: number; rep: number }>()
       for (const l of lvlRows) baseMap.set(Number(l.exerciseID), { set: Number(l.set) || 1, rep: Number(l.rep) || 1 })
@@ -186,7 +192,7 @@ export class ScheduleService {
         for (const e of arr) { if (out.length >= want) break; const k = String(e.id); if (seen.has(k)) continue; seen.add(k); out.push(e) }
         return out.slice(0, 10)
       }
-  
+
       const week: any[] = []
       for (let w = 0; w < duration; w++) {
         for (let i = 0; i < 7; i++) {
@@ -196,6 +202,7 @@ export class ScheduleService {
           const chosen = pick(8)
           const exercises = chosen.map((ex: any) => {
             const base = baseMap.get(Number(ex.id)) || { set: 1, rep: 1 }
+            console.log(base, ': ', ex.id)
             const sets = this.clamp(Number(base.set) + Number(rule.ds || 0), 1, 100)
             const reps = this.clamp(Math.round(Number(base.rep) * (1 + Number(rule.rp || 0) / 100)), 1, 100)
             return { exerciseId: ex.id, name: ex.name, sets, reps }
@@ -203,6 +210,8 @@ export class ScheduleService {
           week.push({ date: dateStr, weekday: this.wd(i), exercises })
         }
       }
+
+
   
       return { meta: { bmi: Number((bmi || 0).toFixed(2)), band, goal, daysPerWeek, weeks: duration }, week }
     } catch (e: any) {

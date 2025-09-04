@@ -54,7 +54,6 @@ export class ExerciseService {
   ) {}
 
   async create(payload: any) {
-    console.log(payload)
     try {
       const name = String(payload?.name ?? '').trim();
       const minAge = Number(payload?.minAge);
@@ -92,6 +91,14 @@ export class ExerciseService {
           { exerciseID: saved.id, name: 'Label 01', order: 0, },
           { exerciseID: saved.id, name: 'Label 02', order: 1, },
           { exerciseID: saved.id, name: 'Label 03', order: 2, },
+        ],
+      )
+
+      await this._exerciseLevelRepository.save(
+        [
+          { exerciseID: saved.id, level: 1, set: 1, rep: 10 },
+          { exerciseID: saved.id, level: 2, set: 2, rep: 20 },
+          { exerciseID: saved.id, level: 3, set: 3, rep: 30 },
         ],
       )
   

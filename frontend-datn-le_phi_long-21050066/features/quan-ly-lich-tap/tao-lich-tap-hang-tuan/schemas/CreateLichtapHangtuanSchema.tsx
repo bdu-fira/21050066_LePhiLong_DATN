@@ -3,6 +3,23 @@ import { MUSCLE_GROUPS } from '@/constants';
 
 export const GOAL_VALUES = [1, 2, 3] as const;
 
+function diffInYears(dateString: string) {
+  const now = new Date();
+  const inputDate = new Date(dateString);
+
+  let years = now.getFullYear() - inputDate.getFullYear();
+
+  if (
+    now.getMonth() < inputDate.getMonth() ||
+    (now.getMonth() === inputDate.getMonth() &&
+      now.getDate() < inputDate.getDate())
+  ) {
+    years--;
+  }
+
+  return years;
+}
+
 /** Lấy danh sách id hợp lệ từ MUSCLE_GROUPS */
 export const MUSCLE_GROUP_IDS = MUSCLE_GROUPS.map(g => g.id);
 const MUSCLE_GROUP_ID_SET = new Set(MUSCLE_GROUP_IDS);
@@ -11,7 +28,13 @@ export const createLichtapHangtuanSchema = z.object({
   dateOfBirth: z
     .string()
     .min(1, 'Vui lòng chọn ngày sinh')
-    .refine((v) => !isNaN(Date.parse(v)), { message: 'Ngày sinh không hợp lệ' }),
+    .refine((v) => !isNaN(Date.parse(v)), { message: 'Ngày sinh không hợp lệ' })
+    .refine(val => diffInYears(val) >= 15, {
+      message: 'Tuổi phải >= 15!',
+    })
+    .refine(val => diffInYears(val) <= 100, {
+      message: 'Tuổi phải <= 100!',
+    }),
 
   gender: z.enum(['0', '1'], { required_error: 'Chọn giới tính' }),
 

@@ -7,8 +7,8 @@ export const metadata: Metadata = {
   description: "Lấy lại mật khẩu | AI Fitness",
 };
 
-export default async function PageLaylaiMatkhau({ params }: { params: Promise<{ token: string }> }) {
-  const p = await params
+export default async function PageLaylaiMatkhau(params: any) {
+  const p = await params.params
   return (
     <div className="flex justify-center items-center h-screen">
       <div className="max-w-md w-full space-y-2">

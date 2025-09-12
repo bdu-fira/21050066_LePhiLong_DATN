@@ -5,12 +5,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../entities/user.entity';
 import { Trainee } from 'src/entities/trainee.entity';
 import { TraineeModule } from 'src/trainee/trainee.module';
+import { Admin } from 'src/entities/admin.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Trainee]),
+    TypeOrmModule.forFeature([User, Trainee, Admin]),
     forwardRef(() => TraineeModule),
-
   ],
   controllers: [UserController],
   providers: [UserService],

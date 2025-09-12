@@ -24,8 +24,8 @@ let UserController = class UserController {
         this._userService = _userService;
         this._configService = _configService;
     }
-    async login(payload, res) {
-        const result = await this._userService.login(payload);
+    async login(payload, res, ip) {
+        const result = await this._userService.login({ ...payload, ip });
         if (result.isSuccess && result.data) {
             res.cookie('access_token', result.data.access_token, {
                 httpOnly: true,
@@ -129,8 +129,9 @@ __decorate([
     (0, common_1.Post)('login'),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Res)()),
+    __param(2, (0, common_1.Ip)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:paramtypes", [Object, Object, String]),
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "login", null);
 __decorate([

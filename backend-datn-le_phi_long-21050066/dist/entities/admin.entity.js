@@ -27,7 +27,7 @@ __decorate([
     __metadata("design:type", String)
 ], Admin.prototype, "lastLoginIP", void 0);
 __decorate([
-    (0, typeorm_1.OneToOne)(() => user_entity_1.User, (user) => user.admin, { onDelete: 'NO ACTION' }),
+    (0, typeorm_1.OneToOne)(() => user_entity_1.User, (user) => user.admin, { onDelete: 'CASCADE' }),
     (0, typeorm_1.JoinColumn)({ name: 'id', referencedColumnName: 'id' }),
     __metadata("design:type", user_entity_1.User)
 ], Admin.prototype, "user", void 0);

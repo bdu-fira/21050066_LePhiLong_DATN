@@ -9,7 +9,7 @@ export class Admin {
   @Column({ nullable: true, length: 255 })
   lastLoginIP: string;
 
-  @OneToOne(() => User, (user) => user.admin, { onDelete: 'NO ACTION' })
+  @OneToOne(() => User, (user) => user.admin, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'id', referencedColumnName: 'id' })
   user: User;
 }

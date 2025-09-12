@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Res, Headers, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Res, Headers, Query, Req, UseGuards, Ip } from '@nestjs/common';
 import { UserService } from './user.service';
 import { LoginDTO } from './dto/login.dto';
 import { Response } from 'express';
@@ -13,8 +13,8 @@ export class UserController {
   ) {}
 
   @Post('login')
-  async login(@Body() payload: any, @Res() res: Response) {
-      const result = await this._userService.login(payload)
+  async login(@Body() payload: any, @Res() res: Response, @Ip() ip: string) {
+      const result = await this._userService.login({...payload, ip})
 
       if (result.isSuccess && result.data) {
           res.cookie('access_token', result.data.access_token, {

@@ -22,15 +22,18 @@ const config_1 = require("@nestjs/config");
 const bcrypt = require("bcrypt");
 const mailer_1 = require("@nestjs-modules/mailer");
 const trainee_entity_1 = require("../entities/trainee.entity");
+const admin_entity_1 = require("../entities/admin.entity");
 let UserService = class UserService {
     _userRepository;
     _traineeRepository;
+    _adminRepository;
     _jwtService;
     _configService;
     _mailerService;
-    constructor(_userRepository, _traineeRepository, _jwtService, _configService, _mailerService) {
+    constructor(_userRepository, _traineeRepository, _adminRepository, _jwtService, _configService, _mailerService) {
         this._userRepository = _userRepository;
         this._traineeRepository = _traineeRepository;
+        this._adminRepository = _adminRepository;
         this._jwtService = _jwtService;
         this._configService = _configService;
         this._mailerService = _mailerService;
@@ -62,6 +65,11 @@ let UserService = class UserService {
             delete access_token_payload.password;
             const access_token = await this._jwtService.signAsync(access_token_payload);
             const refresh_token = await this._jwtService.signAsync(access_token_payload, { expiresIn: this._configService.get('JWT_REFRESH_TOKEN_EXP') });
+            if (user.isAdmin) {
+                const adminAccount = await this._adminRepository.findOne({ where: { id: user.id } });
+                adminAccount.lastLoginIP = payload.ip;
+                await this._adminRepository.save(adminAccount);
+            }
             return {
                 isSuccess: true,
                 statusCode: 200,
@@ -389,7 +397,9 @@ exports.UserService = UserService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_2.InjectRepository)(user_entity_1.User)),
     __param(1, (0, typeorm_2.InjectRepository)(trainee_entity_1.Trainee)),
+    __param(2, (0, typeorm_2.InjectRepository)(admin_entity_1.Admin)),
     __metadata("design:paramtypes", [typeorm_1.Repository,
+        typeorm_1.Repository,
         typeorm_1.Repository,
         jwt_1.JwtService,
         config_1.ConfigService,

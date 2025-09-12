@@ -14,13 +14,14 @@ const typeorm_1 = require("@nestjs/typeorm");
 const user_entity_1 = require("../entities/user.entity");
 const trainee_entity_1 = require("../entities/trainee.entity");
 const trainee_module_1 = require("../trainee/trainee.module");
+const admin_entity_1 = require("../entities/admin.entity");
 let UserModule = class UserModule {
 };
 exports.UserModule = UserModule;
 exports.UserModule = UserModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, trainee_entity_1.Trainee]),
+            typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, trainee_entity_1.Trainee, admin_entity_1.Admin]),
             (0, common_1.forwardRef)(() => trainee_module_1.TraineeModule),
         ],
         controllers: [user_controller_1.UserController],

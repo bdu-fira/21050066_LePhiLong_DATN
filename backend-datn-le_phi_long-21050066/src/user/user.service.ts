@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { MailerService } from '@nestjs-modules/mailer';
 import { Trainee } from 'src/entities/trainee.entity';
+import { Admin } from 'src/entities/admin.entity';
 
 @Injectable()
 export class UserService {
@@ -15,6 +16,8 @@ export class UserService {
     private _userRepository: Repository<User>,
     @InjectRepository(Trainee)
     private _traineeRepository: Repository<Trainee>,
+    @InjectRepository(Admin)
+    private _adminRepository: Repository<Admin>,
     private _jwtService: JwtService,
     private _configService: ConfigService,
     private _mailerService: MailerService,
@@ -54,6 +57,15 @@ export class UserService {
       const access_token = await this._jwtService.signAsync(access_token_payload)
       const refresh_token = await this._jwtService.signAsync(access_token_payload, { expiresIn: this._configService.get<string>('JWT_REFRESH_TOKEN_EXP') })
 
+      // Nếu người dùng là admin
+      // Ghi lại IP của lần đăng nhập cuối cùng vào database
+
+      if(user.isAdmin){
+        const adminAccount = await this._adminRepository.findOne({where: {id: user.id}})
+        adminAccount!.lastLoginIP = payload.ip
+        await this._adminRepository.save(adminAccount as Admin)
+      }
+      
       return {
         isSuccess: true,
         statusCode: 200,

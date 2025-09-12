@@ -4,13 +4,15 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { MailerService } from '@nestjs-modules/mailer';
 import { Trainee } from 'src/entities/trainee.entity';
+import { Admin } from 'src/entities/admin.entity';
 export declare class UserService {
     private _userRepository;
     private _traineeRepository;
+    private _adminRepository;
     private _jwtService;
     private _configService;
     private _mailerService;
-    constructor(_userRepository: Repository<User>, _traineeRepository: Repository<Trainee>, _jwtService: JwtService, _configService: ConfigService, _mailerService: MailerService);
+    constructor(_userRepository: Repository<User>, _traineeRepository: Repository<Trainee>, _adminRepository: Repository<Admin>, _jwtService: JwtService, _configService: ConfigService, _mailerService: MailerService);
     login(payload: any): Promise<{
         isSuccess: boolean;
         statusCode: number;

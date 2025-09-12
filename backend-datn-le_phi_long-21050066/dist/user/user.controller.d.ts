@@ -5,7 +5,7 @@ export declare class UserController {
     private readonly _userService;
     private readonly _configService;
     constructor(_userService: UserService, _configService: ConfigService);
-    login(payload: any, res: Response): Promise<void>;
+    login(payload: any, res: Response, ip: string): Promise<void>;
     logout(res: Response): Response<any, Record<string, any>>;
     verify(res: Response, req: any): Promise<void>;
     create(payload: JSON, res: Response): Promise<void>;

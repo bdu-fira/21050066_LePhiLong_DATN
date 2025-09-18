@@ -167,9 +167,10 @@ let ExerciseService = class ExerciseService {
             const exercise = await this._exerciseRepository.findOne({ where: { id: payload.id } });
             if (!exercise)
                 return { isSuccess: false, statusCode: 404, message: 'Bài tập không tồn tại!' };
-            const abs = path.join(process.cwd(), 'uploads', String(payload.id));
+            const abs = path.join(process.cwd(), 'uploads', 'exercise', String(payload.id));
             if (fs.existsSync(abs))
                 fs.rmSync(abs, { recursive: true, force: true });
+            console.log(abs);
             await this._exerciseRepository.remove(exercise);
             return { isSuccess: true, statusCode: 200, message: 'Xóa bài tập thành công!' };
         }

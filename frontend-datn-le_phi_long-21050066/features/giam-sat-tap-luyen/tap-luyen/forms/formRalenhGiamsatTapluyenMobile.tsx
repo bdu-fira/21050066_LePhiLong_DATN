@@ -4,28 +4,28 @@ import React from "react";
 import HeaderPageTapLuyen from "@/features/giam-sat-tap-luyen/tap-luyen/forms/header";
 import FooterPageTapLuyen from "@/features/giam-sat-tap-luyen/tap-luyen/forms/footer";
 import InputSection from "@/features/giam-sat-tap-luyen/tap-luyen/forms/inputSection";
-import MonitorSection from "@/features/giam-sat-tap-luyen/tap-luyen/forms/monitorSection";
 import PoseViewer3D from "@/features/xem-dong-tac/forms/poseViewer3D";
 import RestOverlay from "@/features/giam-sat-tap-luyen/tap-luyen/forms/restOverlay";
 import ErrorOverlay from "@/features/giam-sat-tap-luyen/tap-luyen/forms/errorOverlay";
+import SummaryOverlay from "@/features/giam-sat-tap-luyen/tap-luyen/forms/summaryOverlay";
 
 import { getExercise } from "../api/getExercise";
 import { getFile } from "../../../xem-dong-tac/api/getFile";
 import { initPoseExtractor, extractFromVideo, drawPose } from "@/lib/PoseExtractor";
 import PoseCls from "@/lib/PoseClassification";
-import ExpertTrainer, { calculateJoints, check, feedOrder, resetOrder, speak } from "@/lib/ExpertTrainer";
-import SummaryOverlay from "./summaryOverlay";
+import ExpertTrainer, { calculateJoints, check, feedOrder, resetOrder } from "@/lib/ExpertTrainer";
 import { saveStats } from "../api/saveStats";
 
 const REST_SECONDS = 1;
 const CONF_THRESHOLD = 0.85;
 
-export default function FormRalenhGiamsatTapluyen(props: any) {
+export default function FormRalenhGiamsatTapluyenMobile(props: any) {
   const screen = React.useRef<HTMLDivElement | null>(null);
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
 
   const [exercises, setExercises] = React.useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = React.useState(0);
-  
+
   const [current, setCurrent] = React.useState<any>({
     id: undefined,
     name: "", set: 0, rep: 0,
@@ -35,9 +35,9 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
     currentModelJson: undefined,
     currentModelUrl: undefined,
     currentPositions: [],
+    currentVoices: []
   });
 
-  // ====== BỔ SUNG: state tiến độ set/rep ======
   const [set, setSet] = React.useState(1);
   const [rep, setRep] = React.useState(0);
 
@@ -72,8 +72,27 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
         : e?.name === "NotFoundError" ? "Không tìm thấy thiết bị camera."
         : "Không truy cập được camera.";
       setCameraError(m);
-      return <ErrorOverlay open={true} message={'Có lỗi xảy ra khi đọc camera, hãy cấp quyền truy cập và tải lại trang.'} onReload={()=>{window.location.reload()}} />
     }
+  }, []);
+
+  // Tự tính chiều cao còn lại = 100dvh - header layout (bằng khoảng cách từ top của container đến mép trên viewport)
+  React.useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const applyHeight = () => {
+      const top = el.getBoundingClientRect().top;
+      el.style.height = `calc(100dvh - ${Math.max(0, Math.round(top))}px)`;
+    };
+    applyHeight();
+    const ro = new ResizeObserver(applyHeight);
+    ro.observe(document.documentElement);
+    window.addEventListener("resize", applyHeight);
+    window.addEventListener("orientationchange", applyHeight);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", applyHeight);
+      window.removeEventListener("orientationchange", applyHeight);
+    };
   }, []);
 
   React.useEffect(() => {
@@ -88,28 +107,27 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
       const preloaded = await Promise.all(
         list.map(async (ex: any) => {
           const out: any = { ...ex };
-
           const modelPath = ex?.model?.model;
           const weightPath = ex?.model?.weight;
           const instructionPath = ex?.model?.instruction;
-          const voicePaths = ex.voicePaths
-          const rules = ex.positions.map((position: any, index: number) => {
-            let criteria = position.evaluationCriteria
-            return {...criteria}
-          })
+          const voicePaths = ex.voicePaths;
 
-          out.rules = rules
+          const rules = ex.positions.map((position: any) => {
+            let criteria = position.evaluationCriteria;
+            return { ...criteria };
+          });
+          out.rules = rules;
+
+          try { try { poseRef.current = await initPoseExtractor(); } catch { poseRef.current = null; } } catch {}
 
           try {
-            try { poseRef.current = await initPoseExtractor(); } catch { poseRef.current = null; }
             if (modelPath) {
               const mj: any = await getFile(modelPath);
               out._modelJson = mj;
               out._modelUrl = modelPath;
             }
-          } catch {
-            return <ErrorOverlay open={true} message={'Có lỗi xảy ra khi nạp mô hình, vui lòng tải lại trang.'} onReload={()=>{window.location.reload()}} />
-          }
+          } catch {}
+
           try {
             if (weightPath) {
               const wb: any = await getFile(weightPath);
@@ -120,9 +138,8 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
                 trackUrl(url);
               }
             }
-          } catch {
-            return <ErrorOverlay open={true} message={'Có lỗi xảy ra khi nạp mô hình, vui lòng tải lại trang.'} onReload={()=>{window.location.reload()}} />
-          }
+          } catch {}
+
           try {
             if (instructionPath) {
               const ins: any = await getFile(instructionPath);
@@ -132,29 +149,22 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
                 trackUrl(url);
               }
             }
-
-            if(voicePaths) {
-              const voices = []
-              for (const path of voicePaths){
-                const voiceBlob = await getFile(path)
-                const url = URL.createObjectURL(voiceBlob)
-                const audio = new Audio(url)
-                trackUrl(url)
-
-                const audioName = path.split("\\").pop()!.replace(".wav", "").split('-')
-                const positionID = Number(audioName[0])
-                const criteriaID = Number(audioName[1])
-                voices.push({
-                  "positionID": positionID,
-                  "criteriaID": criteriaID,
-                  "audio": audio 
-                })
+            if (voicePaths) {
+              const voices: any[] = [];
+              for (const path of voicePaths) {
+                const voiceBlob = await getFile(path);
+                const url = URL.createObjectURL(voiceBlob);
+                const audio = new Audio(url);
+                trackUrl(url);
+                const audioName = path.split("\\").pop()!.replace(".wav", "").split("-");
+                const positionID = Number(audioName[0]);
+                const criteriaID = Number(audioName[1]);
+                voices.push({ positionID, criteriaID, audio });
               }
-              out.voices = voices
+              out.voices = voices;
             }
-          } catch {
-            return <ErrorOverlay open={true} message={'Có lỗi xảy ra khi nạp hệ chuyên gia, vui lòng tải lại trang.'} onReload={()=>{window.location.reload()}} />
-          }
+          } catch {}
+
           return out;
         })
       );
@@ -198,23 +208,21 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
     });
     setCurrentIndex(index);
 
-    console.log(ex.voices)
-
     try { if (ex?._modelJson && ex?._weightBin) await PoseCls.load(ex._modelJson, ex._weightBin); } catch {}
-    ExpertTrainer.loadData(ex.rules, ex.voices)
+    ExpertTrainer.loadData(ex.rules, ex.voices);
     resetOrder();
     setWorldLms(null);
     setPredResult(null);
-    setRep(0); 
+    setRep(0);
     lastPredRef.current = "";
   }, [exercises]);
 
   const onFrame = React.useCallback(async (videoEl: HTMLVideoElement) => {
-    if (!poseRef.current || !videoEl || videoEl.readyState < 2) return
-    const r = await extractFromVideo(videoEl, poseRef.current)
-    if (Array.isArray(r?.poseWorldLandmarks)) setWorldLms(r.poseWorldLandmarks)
-    return r
-  }, [poseRef])
+    if (!poseRef.current || !videoEl || videoEl.readyState < 2) return;
+    const r = await extractFromVideo(videoEl, poseRef.current);
+    if (Array.isArray(r?.poseWorldLandmarks)) setWorldLms(r.poseWorldLandmarks);
+    return r;
+  }, [poseRef]);
 
   const onDraw = React.useCallback((canvasEl: HTMLCanvasElement, result: any, videoEl: HTMLVideoElement) => {
     if (!result?.keypoints?.length) return;
@@ -239,11 +247,7 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
         if (s <= 1) {
           clearInterval(t);
           setIsRest(false);
-
-          if (pendingIndex !== null && pendingIndex !== currentIndex) {
-            setSet(1);
-          }
-
+          if (pendingIndex !== null && pendingIndex !== currentIndex) setSet(1);
           if (pendingIndex !== null) { loadData(pendingIndex); setPendingIndex(null); }
           return 0;
         }
@@ -253,51 +257,38 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
     return () => clearInterval(t);
   }, [isRest, pendingIndex, loadData, currentIndex]);
 
-  // Chỉ cập nhật state khi độ tin cậy > CONF_THRESHOLD
-  React.useEffect(() => {
-    poseClassify()
-  }, [worldLms])
+  React.useEffect(() => { poseClassify(); }, [worldLms]);
 
   const poseClassify = () => {
-    if (!worldLms || !PoseCls.ready()) return
-    const out = PoseCls.predictFromLandmarks(worldLms as any)
-    if (!out || !Array.isArray(out.probs)) return
-    const bestIdx = out.index
-    const bestProb = out.probs[bestIdx] as number ?? 0
-    if (bestProb < CONF_THRESHOLD) return
-    const key = `${bestIdx}:${bestProb.toFixed(3)}`
-    if (lastPredRef.current !== key) {
-      lastPredRef.current = key
-      setPredResult(out)
-    }
-  }
+    if (!worldLms || !PoseCls.ready()) return;
+    const out = PoseCls.predictFromLandmarks(worldLms as any);
+    if (!out || !Array.isArray(out.probs)) return;
+    const bestIdx = out.index;
+    const bestProb = (out.probs[bestIdx] as number) ?? 0;
+    if (bestProb < CONF_THRESHOLD) return;
+    const key = `${bestIdx}:${bestProb.toFixed(3)}`;
+    if (lastPredRef.current !== key) { lastPredRef.current = key; setPredResult(out); }
+  };
 
-  React.useEffect(() => {
-    if (predResult) response()
-  }, [predResult, worldLms])
+  React.useEffect(() => { if (predResult) response(); }, [predResult, worldLms]);
 
   const endWorkout = async () => {
-    const statsData = {
-      date: props!.date,
-      errors: errors
-    }
-    await saveStats(statsData)
+    const statsData = { date: props!.date, errors: errors };
+    await saveStats(statsData);
     setOpenSummary(true);
   };
 
   const response = () => {
     if (!predResult || isRest) return;
-
     const bestIdx = predResult.index;
     const angles = calculateJoints(worldLms);
-  
     const e = check(current.currentPositions[bestIdx].id, angles);
     if (!error && e) setError(e);
-  
+
     if (feedOrder(bestIdx)) {
       const nextRep = rep + 1;
       setRep(nextRep);
-  
+
       if (error) {
         setErrorCount(c => c + 1);
         setErrors(list => ([
@@ -312,10 +303,9 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
             errorMessage: error.errorMessage,
           }
         ]));
-        ExpertTrainer.speak(error.positionID, error.criteriaID)
       }
       setError(null);
-      nextSetOrExercise(nextRep)
+      nextSetOrExercise(nextRep);
     }
   };
 
@@ -329,64 +319,84 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
       setIsRest(true);
 
       if (nextSet <= totalSets) {
-        setSet(nextSet);               
+        setSet(nextSet);
         setPendingIndex(currentIndex);
-      }
-      else if (exercises.length - 1 <= currentIndex){
-        endWorkout()
-      }
-       else {
+      } else if (exercises.length - 1 <= currentIndex) {
+        endWorkout();
+      } else {
         const goto = (currentIndex + 1) % exercises.length;
-        setSet(1);                     
+        setSet(1);
         setPendingIndex(goto);
       }
     }
-  }
+  };
 
-  const bestIdx = predResult?.index
-  const currentPoseName = typeof bestIdx === 'number' && Array.isArray(current?.currentPositions)
-    ? (current.currentPositions[bestIdx]?.name || '')
-    : ''
-  const currentPoseProb = (typeof bestIdx === 'number' && Array.isArray(predResult?.probs))
-    ? predResult.probs[bestIdx]
-    : undefined
+  const bestIdx = predResult?.index;
+  const currentPoseName = typeof bestIdx === "number" && Array.isArray(current?.currentPositions)
+    ? (current.currentPositions[bestIdx]?.name || "")
+    : "";
 
-  if (openSummary){
-    return <SummaryOverlay
-          open={openSummary}
-          onBackHome={() => { window.location.href = "/"; }}
-          totalErrors={errorCount}
-          totalSets={exercises.map((x:any) => x?.set).reduce((a, b) => a + b, 0)}
-          totalReps={exercises.map((x:any) => x?.rep * x?.set).reduce((a, b) => a + b, 0)}
-          exerciseCount={exercises.length}
-          exerciseNames={exercises.map((x:any) => x?.name).filter(Boolean)}
+  if (openSummary) {
+    return (
+      <SummaryOverlay
+        open={openSummary}
+        onBackHome={() => { window.location.href = "/"; }}
+        totalErrors={errorCount}
+        totalSets={exercises.map((x:any) => x?.set).reduce((a, b) => a + b, 0)}
+        totalReps={exercises.map((x:any) => x?.rep * x?.set).reduce((a, b) => a + b, 0)}
+        exerciseCount={exercises.length}
+        exerciseNames={exercises.map((x:any) => x?.name).filter(Boolean)}
       />
+    );
   }
-  return (
-    <div ref={screen} className="bg-black text-white w-screen flex flex-col gap-8 p-10">
-      <HeaderPageTapLuyen screen={screen} title={current?.name || exercises[currentIndex]?.name} />
 
-      <div className="flex justify-between px-4 flex-1">
-        <div className="w-full">
-          <div className="grid grid-cols-5 gap-4">
-            <InputSection onFrame={onFrame} onDraw={onDraw} />
-            <PoseViewer3D src={current?.currentPoseViewerModel} />
-            <MonitorSection
-              sets={set}
-              reps={rep}
-              errors={errorCount}
-              pose={currentPoseName}
-              poseProb={currentPoseProb}
-            />
-          </div>
-        </div>
-        
+  return (
+    <div ref={screen} className="bg-black text-white w-screen max-w-full overflow-hidden">
+      <div className="p-3">
+        <HeaderPageTapLuyen screen={screen} title={current?.name || exercises[currentIndex]?.name} />
       </div>
 
-      <FooterPageTapLuyen currentIndex={currentIndex} total={exercises.length} onPrev={onPrev} onNext={onNext} />
+      {/* KHUNG CHỨA có chiều cao = 100dvh - header layout (đã tính bằng JS) */}
+      <div ref={containerRef} className="relative w-full max-w-full overflow-hidden px-3">
+        {/* Vùng nội dung chiếm hết chiều cao khung chứa */}
+        <div className="relative h-full pb-20"> {/* pb-20 để không bị footer overlay che viewer */}
+          {/* Viewer chia đôi: trên Video / dưới 3D */}
+          <div className="grid grid-rows-2 gap-2 h-full">
+            <div className="relative rounded-xl overflow-hidden bg-black">
+              <InputSection onFrame={onFrame} onDraw={onDraw} />
+              <div className="pointer-events-none absolute top-2 right-2 z-10">
+                <div className="rounded-lg bg-black/60 backdrop-blur px-3 py-2 text-xs space-y-1">
+                  <div className="flex items-center gap-2"><span className="opacity-70">Set</span><span className="font-semibold">{set ?? 0}</span></div>
+                  <div className="flex items-center gap-2"><span className="opacity-70">Rep</span><span className="font-semibold">{rep ?? 0}</span></div>
+                  <div className="flex items-center gap-2"><span className="opacity-70">Lỗi</span><span className="font-semibold">{errorCount ?? 0}</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative rounded-xl overflow-hidden bg-black">
+              <PoseViewer3D src={current?.currentPoseViewerModel} />
+              <div className="absolute left-2 bottom-2 text-xs opacity-70 truncate pointer-events-none">
+                {currentPoseName || "—"}
+              </div>
+            </div>
+          </div>
+
+          {/* FOOTER OVERLAY — dính đáy của KHUNG CHỨA (nằm trong khung) */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20">
+            <div className="pointer-events-auto bg-gradient-to-t from-black/80 to-black/0 px-0 pt-6 pb-3">
+              <FooterPageTapLuyen
+                currentIndex={currentIndex}
+                total={exercises.length}
+                onPrev={onPrev}
+                onNext={onNext}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
       <RestOverlay open={isRest} seconds={restLeft} />
       <ErrorOverlay open={!!cameraError} message={cameraError} onReload={() => window.location.reload()} />
-      
     </div>
   );
 }

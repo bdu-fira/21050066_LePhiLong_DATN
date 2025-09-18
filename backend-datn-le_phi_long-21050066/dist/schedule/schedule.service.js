@@ -93,7 +93,6 @@ let ScheduleService = class ScheduleService {
     async createWeeklySchedule(input) {
         try {
             const s = await this.generateSchedule(input);
-            console.log(s.week[0].exercises);
             const header = await this.scheduleRepo.save({
                 traineeID: input.userId,
                 level: s.meta.goal,
@@ -106,7 +105,6 @@ let ScheduleService = class ScheduleService {
                 set: e.sets,
                 rep: e.reps,
             })));
-            console.log(details);
             if (details.length)
                 await this.scheduleDetailRepo.save(details);
             return { statusCode: 201, message: 'Tạo lịch tập thành công!', data: { scheduleId: header.id, ...s } };
@@ -214,7 +212,6 @@ let ScheduleService = class ScheduleService {
                     const chosen = pick(8);
                     const exercises = chosen.map((ex) => {
                         const base = baseMap.get(Number(ex.id)) || { set: 1, rep: 1 };
-                        console.log(base, ': ', ex.id);
                         const sets = this.clamp(Number(base.set) + Number(rule.ds || 0), 1, 100);
                         const reps = this.clamp(Math.round(Number(base.rep) * (1 + Number(rule.rp || 0) / 100)), 1, 100);
                         return { exerciseId: ex.id, name: ex.name, sets, reps };

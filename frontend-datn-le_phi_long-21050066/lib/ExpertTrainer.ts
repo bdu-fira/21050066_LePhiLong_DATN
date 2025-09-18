@@ -105,6 +105,7 @@ const JOINT_INDEX_BY_SET: any = (() => {
 })();
 
 export function loadData(rawRules: any, voices: any) {
+  console.log(voices)
   const out: any[] = [];
   for (const group of (rawRules || [])) {
     for (const k of Object.keys(group || {})) {

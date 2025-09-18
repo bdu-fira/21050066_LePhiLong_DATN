@@ -77,7 +77,6 @@ export class ScheduleService {
   async createWeeklySchedule(input: any): Promise<any> {
     try {
       const s = await this.generateSchedule(input)
-      console.log(s.week[0].exercises)
 
       const header = await this.scheduleRepo.save({
         traineeID: input.userId,
@@ -94,8 +93,6 @@ export class ScheduleService {
           rep: e.reps,
         } as any))
       )
-
-      console.log(details)
   
       if (details.length) await this.scheduleDetailRepo.save(details)
   
@@ -202,7 +199,6 @@ export class ScheduleService {
           const chosen = pick(8)
           const exercises = chosen.map((ex: any) => {
             const base = baseMap.get(Number(ex.id)) || { set: 1, rep: 1 }
-            console.log(base, ': ', ex.id)
             const sets = this.clamp(Number(base.set) + Number(rule.ds || 0), 1, 100)
             const reps = this.clamp(Math.round(Number(base.rep) * (1 + Number(rule.rp || 0) / 100)), 1, 100)
             return { exerciseId: ex.id, name: ex.name, sets, reps }

@@ -23,7 +23,6 @@ export default function PoseViewer3D({ src, height = '65vh' }: Props) {
   const resizeHandlerRef = useRef<() => void>(null);
   const currentLoadId = useRef(0);
 
-  // init once
   useEffect(() => {
     if (initedRef.current) return;
     initedRef.current = true;
@@ -119,8 +118,7 @@ export default function PoseViewer3D({ src, height = '65vh' }: Props) {
     };
   }, []);
 
-  // load FBX when src changes
-  useEffect(() => {
+  const loadData = () => {
     const THREE = THREERef.current;
     const contentRoot = contentRootRef.current;
     if (!THREE || !contentRoot) return;
@@ -183,7 +181,10 @@ export default function PoseViewer3D({ src, height = '65vh' }: Props) {
       );
     })();
 
-  }, [src]);
+  }
+
+  // load FBX when src changes
+  useEffect(loadData, [src]);
 
   return (
     <div

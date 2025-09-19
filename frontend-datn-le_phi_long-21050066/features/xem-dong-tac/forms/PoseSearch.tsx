@@ -78,7 +78,7 @@ export default function PoseSearch() {
 
   const switchTo3D = () => {
     setTab("3D");
-    if (selected?.path) load3D(selected.path);
+    load3D(selected.path || null);
   };
   const switchToAR = () => {
     setTab("AR");
@@ -111,8 +111,7 @@ export default function PoseSearch() {
                 selected?.id === it.id ? "bg-neutral-50 border-neutral-400" : ""
               }`}
             >
-              <div className="font-medium">{it.name}</div>
-              <div className="text-[10px] text-neutral-400 break-all">{it.path}</div>
+              <div className="font-xs">{it.name}</div>
             </button>
           ))}
         </div>
@@ -182,7 +181,7 @@ export default function PoseSearch() {
                       <img
                         src="https://arprojectsdemo.netlify.app/markers/hiro.png"
                         alt="Hiro marker"
-                        className="w-full h-auto block"
+                        className="w-full h-auto block max-w-[700px] mx-auto"
                       />
                     </div>
                   </div>

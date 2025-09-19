@@ -1,5 +1,3 @@
-// app/page.tsx
-
 import PoseSearch from "@/features/xem-dong-tac/forms/PoseSearch";
 
 

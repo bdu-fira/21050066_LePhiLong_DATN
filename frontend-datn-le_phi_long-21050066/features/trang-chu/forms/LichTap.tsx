@@ -121,7 +121,7 @@ export default function FormLichtap() {
       <div className="mx-auto flex flex-col gap-8 px-4 sm:px-6 py-8 items-start">
         <div className="w-full max-w-[800px] mx-auto">
           <div className="mx-auto bg-white shadow-lg border rounded-2xl p-4 sm:p-8 w-full space-y-6">
-            {/* Header tuần + điều hướng */}
+            {/* Header tuần + điều hướng — GIỮ NGUYÊN */}
             <div className="flex items-center justify-between mb-2">
               <Button variant="ghost" onClick={prev} disabled={s.weekIdx <= 0 || !has}><ChevronLeft /></Button>
               <div className="flex items-center gap-2">
@@ -135,15 +135,15 @@ export default function FormLichtap() {
 
             {!s.loading && s.msg && s.code !== 200 ? <div className="text-sm text-destructive">{s.msg}</div> : null}
 
-            {/* Thanh chọn ngày cuộn ngang */}
-            <div className="flex gap-2 mb-1 overflow-x-auto px-1 -mx-1 justify-center">
+            {/* Thanh chọn ngày — FIX không tràn, không cần cuộn */}
+            <div className="grid grid-cols-4 xs:grid-cols-5 sm:grid-cols-7 gap-2 mb-1">
               {days.length ? (
                 days.map((d: any, i: number) => (
                   <Button
                     key={d.date}
                     size="sm"
                     variant={s.dayIdx === i ? "default" : "ghost"}
-                    className={`shrink-0 rounded-full px-0 w-16 h-11 text-sm font-bold transition-all duration-150 border-2 ${s.dayIdx === i
+                    className={`w-full rounded-full h-11 text-sm font-bold transition-all duration-150 border-2 ${s.dayIdx === i
                       ? "bg-orange-500 text-white shadow border-orange-500"
                       : "hover:bg-orange-100 text-orange-700 border-transparent"
                       }`}
@@ -154,7 +154,7 @@ export default function FormLichtap() {
                   </Button>
                 ))
               ) : (
-                <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <div className="col-span-4 xs:col-span-5 sm:col-span-7 flex items-center gap-2 text-muted-foreground text-sm">
                   <RefreshCcw className="w-4 h-4" />
                   {s.loading ? "Đang tải..." : "Không có dữ liệu tuần."}
                 </div>

@@ -61,14 +61,54 @@ export async function trainPoseClassifier(poseData: any) {
   model.add(tf.layers.dense({ units: labelNames.length, activation: "softmax"}))
   model.compile({ optimizer: tf.train.adam(0.001), loss: "categoricalCrossentropy", metrics: ["accuracy"] })
 
+  // === Thêm biến & điều kiện để chọn mô hình tốt nhất ===
   let valAcc = 0
+  let bestValAcc = -Infinity
+  let bestValLoss = Infinity
+  let bestEpoch = -1
+  let bestWeights: tf.Tensor[] | null = null
+  const eps = 1e-12
+  const disposeWeights = (ws: tf.Tensor[] | null) => { if (!ws) return; ws.forEach(w => w.dispose && w.dispose()) }
+
   await model.fit(Xtr, ytr, {
     epochs: 500,
     batchSize: 32,
     shuffle: true,
     validationData: [Xva, yva],
-    callbacks: { onEpochEnd: (_e, logs) => { if (logs?.val_acc != null) valAcc = logs.val_acc as number; console.log(logs!.val_loss) } }
+    callbacks: {
+      onEpochEnd: (_e, logs) => {
+        // Hỗ trợ cả 'val_acc' lẫn 'val_accuracy' tùy version tfjs
+        const vAcc = (logs?.val_acc ?? logs?.val_accuracy) as number | undefined
+        const vLoss = logs?.val_loss as number | undefined
+
+        if (vAcc != null) valAcc = vAcc
+        console.log(logs!.val_loss)
+
+        // Cập nhật "best" nếu: acc cao hơn, hoặc acc bằng mà loss thấp hơn
+        if (vAcc != null && vLoss != null) {
+          const betterAcc = vAcc > bestValAcc + eps
+          const tieAccBetterLoss = Math.abs(vAcc - bestValAcc) <= eps && vLoss < bestValLoss - eps
+          if (betterAcc || tieAccBetterLoss) {
+            // giải phóng bản lưu trước (nếu có) để tránh leak
+            disposeWeights(bestWeights)
+            // clone trọng số hiện tại làm "best"
+            bestWeights = model.getWeights().map(w => w.clone())
+            bestValAcc = vAcc
+            bestValLoss = vLoss
+            bestEpoch = (logs as any).epoch ?? -1 // không phải lib nào cũng set
+          }
+        }
+      }
+    }
   })
+
+  // Nạp lại trọng số tốt nhất trước khi save (nếu có)
+  if (bestWeights) {
+    model.setWeights(bestWeights)
+    // Không dispose bestWeights sau khi setWeights; model sẽ sở hữu chúng
+    bestWeights = null
+    valAcc = bestValAcc // báo cáo lại acc tốt nhất
+  }
 
   let modelJson: File = null as any
   let weightsFile: File = null as any
@@ -107,5 +147,6 @@ export async function trainPoseClassifier(poseData: any) {
 
   Xtr.dispose(); Xva.dispose(); ytr.dispose(); yva.dispose()
 
-  return { model, labelNames, modelJson, weightsFile, valAcc }
+  // Trả thêm valLoss tốt nhất và epoch tương ứng (nếu cần dùng)
+  return { model, labelNames, modelJson, weightsFile, valAcc, valLoss: bestValLoss, bestEpoch }
 }

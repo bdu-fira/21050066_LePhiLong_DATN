@@ -256,7 +256,7 @@ export default function FormLichtap() {
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <SummaryItem icon={<ListTodo className="w-6 h-6 text-violet-600" />} label="Tổng động tác (tuần)" value={f2(totalEx)} />
+                <SummaryItem icon={<ListTodo className="w-6 h-6 text-violet-600" />} label="Tổng động tác (tuần)" value={totalEx} />
                 <SummaryItem icon={<Flame className="w-6 h-6 text-orange-500" />} label="Tổng Kcal (tuần)" value={f2(totalCal)} />
               </div>
             </div>

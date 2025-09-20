@@ -366,8 +366,8 @@ export default function FormRalenhGiamsatTapluyenMobile(props: any) {
               <InputSection onFrame={onFrame} onDraw={onDraw} />
               <div className="pointer-events-none absolute top-2 right-2 z-10">
                 <div className="rounded-lg bg-black/60 backdrop-blur px-3 py-2 text-xs space-y-1">
-                  <div className="flex items-center gap-2"><span className="opacity-70">Set</span><span className="font-semibold">{set ?? 0}</span></div>
-                  <div className="flex items-center gap-2"><span className="opacity-70">Rep</span><span className="font-semibold">{rep ?? 0}</span></div>
+                  <div className="flex items-center gap-2"><span className="opacity-70">Set</span><span className="font-semibold">{set ?? 0} / {current.set}</span></div>
+                  <div className="flex items-center gap-2"><span className="opacity-70">Rep</span><span className="font-semibold">{rep ?? 0} / {current.rep}</span></div>
                   <div className="flex items-center gap-2"><span className="opacity-70">Lỗi</span><span className="font-semibold">{errorCount ?? 0}</span></div>
                 </div>
               </div>

@@ -37,6 +37,7 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
     currentPositions: [],
   });
 
+
   // ====== BỔ SUNG: state tiến độ set/rep ======
   const [set, setSet] = React.useState(1);
   const [rep, setRep] = React.useState(0);
@@ -197,8 +198,6 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
       currentVoices: ex?.voices || []
     });
     setCurrentIndex(index);
-
-    console.log(ex.voices)
 
     try { if (ex?._modelJson && ex?._weightBin) await PoseCls.load(ex._modelJson, ex._weightBin); } catch {}
     ExpertTrainer.loadData(ex.rules, ex.voices)
@@ -374,6 +373,8 @@ export default function FormRalenhGiamsatTapluyen(props: any) {
             <MonitorSection
               sets={set}
               reps={rep}
+              totalSets={current?.set || 1}
+              totalReps={current?.rep || 0}
               errors={errorCount}
               pose={currentPoseName}
               poseProb={currentPoseProb}

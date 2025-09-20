@@ -30,15 +30,19 @@ exports.AppModule = AppModule = __decorate([
                 isGlobal: true,
                 envFilePath: '.env'
             }),
-            typeorm_1.TypeOrmModule.forRoot({
-                type: 'mysql',
-                host: 'localhost',
-                port: 3306,
-                username: 'root',
-                password: '123',
-                database: 'ai_fitness',
-                entities: [__dirname + '/entities/**/*{.ts,.js}'],
-                timezone: '+07:00',
+            typeorm_1.TypeOrmModule.forRootAsync({
+                imports: [config_1.ConfigModule],
+                inject: [config_1.ConfigService],
+                useFactory: async (configService) => ({
+                    type: 'mysql',
+                    host: 'localhost',
+                    port: 3306,
+                    username: 'root',
+                    password: '123',
+                    database: 'ai_fitness',
+                    entities: [__dirname + '/entities/**/*{.ts,.js}'],
+                    timezone: '+07:00',
+                }),
             }),
             jwt_1.JwtModule.registerAsync({
                 imports: [config_1.ConfigModule],

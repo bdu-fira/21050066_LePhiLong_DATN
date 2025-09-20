@@ -5,7 +5,7 @@ import FormRalenhGiamsatTapluyenMobile from "@/features/giam-sat-tap-luyen/tap-l
 export default async function PageRalenhGiamsatTapluyen({
   params,
 }: {
-  params: { date: string };
+  params: Promise<{ date: string }>;
 }) {
   const { date } = await params;
   const headersList = await headers(); 

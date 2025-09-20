@@ -18,15 +18,19 @@ import { ScheduleModule } from './schedule/schedule.module';
       isGlobal: true,
       envFilePath: '.env'
     }),
-    TypeOrmModule.forRoot({
-      type: 'mysql',
-      host: 'localhost',
-      port: 3306,
-      username: 'root',
-      password: '123',
-      database: 'ai_fitness',
-      entities: [__dirname + '/entities/**/*{.ts,.js}'],
-      timezone: '+07:00', 
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => ({
+        type: 'mysql',
+        host: 'localhost',
+        port: 3306,
+        username: 'root',
+        password: '123',
+        database: 'ai_fitness',
+        entities: [__dirname + '/entities/**/*{.ts,.js}'],
+        timezone: '+07:00', 
+      }),
     }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
